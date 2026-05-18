@@ -40,6 +40,30 @@ import {
   MessageSquare, Box, X, Wand2
 } from "lucide-react";
 
+// --- SHAPE DESCRIPTIONS (Dành cho Tooltip) ---
+const shapeDescriptions: Record<string, string> = {
+  'rectangle': 'A standard process, action, or operation.',
+  'rounded': 'An alternative process or service step.',
+  'text': 'A plain text label or annotation.',
+  'ellipse': 'Start or end point of a flowchart.',
+  'square': 'A generic square block.',
+  'circle': 'A generic circular node.',
+  'process': 'A predefined process or subroutine.',
+  'diamond': 'A decision or branching point.',
+  'parallelogram': 'Data input or output (I/O).',
+  'hexagon': 'Preparation or initialization step.',
+  'triangle': 'A manual operation or extraction.',
+  'cylinder': 'A database or data storage.',
+  'cloud': 'Cloud storage or external network.',
+  'document': 'A document or report.',
+  'internalStorage': 'Internal memory or storage.',
+  'cube': 'A 3D cube representation.',
+  'step': 'A step in a sequential process.',
+  'callout': 'A callout or speech bubble for comments.',
+  'actor': 'A user, actor, or person.',
+  'note': 'A sticky note for documentation.'
+};
+
 // --- 1. CUSTOM SHAPE NODE ---
 const CustomShapeNode = ({ id, data, selected, style }: any) => {
   const { shapeType, label } = data;
@@ -95,11 +119,7 @@ const CustomShapeNode = ({ id, data, selected, style }: any) => {
       <div style={shapeStyle} className="relative z-10" onDoubleClick={() => setIsEditing(true)}>
         <span style={shapeType === 'diamond' ? { transform: 'rotate(-45deg)' } : shapeType === 'parallelogram' ? { transform: 'skewX(15deg)' } : {}}>
           {isEditing ? (
-            <input 
-              autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} 
-              onBlur={saveEdit} onKeyDown={e => e.key === 'Enter' && saveEdit()}
-              className="w-[90%] text-center text-slate-800 bg-transparent outline-none border-b border-blue-400"
-            />
+            <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={saveEdit} onKeyDown={e => e.key === 'Enter' && saveEdit()} className="w-[90%] text-center text-slate-800 bg-transparent outline-none border-b border-blue-400" />
           ) : label}
         </span>
       </div>
@@ -107,15 +127,31 @@ const CustomShapeNode = ({ id, data, selected, style }: any) => {
   );
 };
 
-// --- 2. SMART EDGE ---
+// --- 2. SMART EDGE (Hỗ trợ Edit Text trực tiếp) ---
 const SmartEdge = ({ id, source, target, style, markerEnd, markerStart, label, data }: EdgeProps) => {
+  const { setEdges } = useReactFlow();
   const sourceNode = useStore(useCallback((store) => store.nodeInternals.get(source), [source]));
   const targetNode = useStore(useCallback((store) => store.nodeInternals.get(target), [target]));
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(label as string || "");
+
+  useEffect(() => { setEditValue(label as string || ""); }, [label]);
+
+  const saveEdit = () => {
+    setIsEditing(false);
+    setEdges((eds) => {
+      const newEdges = eds.map((e) => e.id === id ? { ...e, label: editValue } : e);
+      setTimeout(() => window.dispatchEvent(new CustomEvent('mermaid-rebuild-edge', { detail: { edges: newEdges } })), 0);
+      return newEdges;
+    });
+  };
 
   if (!sourceNode || !targetNode) return null;
   const sWidth = sourceNode.width || 120; const sHeight = sourceNode.height || 40;
   const tWidth = targetNode.width || 120; const tHeight = targetNode.height || 40;
 
+  // Xử lý Self-Loop
   if (source === target) {
     const labelLength = typeof label === 'string' ? label.length : 0;
     const radiusX = 50 + labelLength * 2.5; 
@@ -133,10 +169,16 @@ const SmartEdge = ({ id, source, target, style, markerEnd, markerStart, label, d
     return (
       <>
         <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} markerStart={markerStart} />
-        {label && (
+        {label !== undefined && (
           <EdgeLabelRenderer>
-            <div className="nodrag nopan" style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, background: 'white', padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: 11, fontWeight: 600, color: '#334155', zIndex: 20 }}>
-              {label}
+            <div 
+              onDoubleClick={() => setIsEditing(true)}
+              className="nodrag nopan" 
+              style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, background: 'white', padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: 11, fontWeight: 600, color: '#334155', zIndex: 20, pointerEvents: 'all' }}
+            >
+              {isEditing ? (
+                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={saveEdit} onKeyDown={e => e.key === 'Enter' && saveEdit()} className="text-center text-slate-800 bg-transparent outline-none border-b border-blue-400" style={{minWidth: '40px'}} />
+              ) : label}
             </div>
           </EdgeLabelRenderer>
         )}
@@ -167,10 +209,7 @@ const SmartEdge = ({ id, source, target, style, markerEnd, markerStart, label, d
     const length = Math.sqrt(dx * dx + dy * dy) || 1; 
     const nx = -dy / length; const ny = dx / length;
     const curveOffset = 60; 
-    
-    const cx = mx + nx * curveOffset; 
-    const cy = my + ny * curveOffset;
-
+    const cx = mx + nx * curveOffset; const cy = my + ny * curveOffset;
     const shiftOffset = 15;
     const finalSourceX = sourceX + nx * shiftOffset; const finalSourceY = sourceY + ny * shiftOffset;
     const finalTargetX = targetX + nx * shiftOffset; const finalTargetY = targetY + ny * shiftOffset;
@@ -185,10 +224,16 @@ const SmartEdge = ({ id, source, target, style, markerEnd, markerStart, label, d
   return (
     <>
       <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} markerStart={markerStart} />
-      {label && (
+      {label !== undefined && (
         <EdgeLabelRenderer>
-          <div className="nodrag nopan" style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, background: 'white', padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: 11, fontWeight: 600, color: '#334155', zIndex: 20 }}>
-            {label}
+          <div 
+            onDoubleClick={() => setIsEditing(true)}
+            className="nodrag nopan" 
+            style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, background: 'white', padding: '2px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: 11, fontWeight: 600, color: '#334155', zIndex: 20, pointerEvents: 'all' }}
+          >
+            {isEditing ? (
+                <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={saveEdit} onKeyDown={e => e.key === 'Enter' && saveEdit()} className="text-center text-slate-800 bg-transparent outline-none border-b border-blue-400" style={{minWidth: '40px'}} />
+            ) : label}
           </div>
         </EdgeLabelRenderer>
       )}
@@ -242,7 +287,7 @@ const consolidateEdges = (edges: Edge[]): Edge[] => {
   return consolidated;
 };
 
-// --- 4. STRICT PARSER & GENERATOR ---
+// --- 4. STRICT PARSER (Dịch lỗi sang Tiếng Anh) ---
 const parseMermaid = (code: string) => {
   const nodesMap = new Map<string, Node>();
   const edges: Edge[] = [];
@@ -297,7 +342,7 @@ const parseMermaid = (code: string) => {
       }
       return;
     }
-    throw { line: index + 1, message: "Lỗi cú pháp Mermaid không hợp lệ.", lineText: codePart };
+    throw { line: index + 1, message: "Invalid Mermaid syntax.", lineText: codePart };
   });
 
   return { nodes: Array.from(nodesMap.values()), edges: consolidateEdges(edges) };
@@ -355,7 +400,6 @@ const IDEPageContent = () => {
 
   const [openShapeMenus, setOpenShapeMenus] = useState<Record<string, boolean>>({ "General": true, "Flowchart": true });
   
-  // States cho Resizable Panels
   const [explorerWidth, setExplorerWidth] = useState<number>(256);
   const [editorWidth, setEditorWidth] = useState<number>(500);
   const [rightPanelWidth, setRightPanelWidth] = useState<number>(256);
@@ -365,6 +409,8 @@ const IDEPageContent = () => {
   const [isDraggingRightPanel, setIsDraggingRightPanel] = useState(false);
 
   const [contextMenu, setContextMenu] = useState<{ id: string; top: number; left: number; type: 'node' | 'edge' } | null>(null);
+  const [hoveredShape, setHoveredShape] = useState<{ x: number, y: number, item: any } | null>(null);
+  const hoverTimeout = useRef<any>(null);
 
   const [code, setCode] = useState<string>("graph TD;\n    KH[\"Khách hàng\"] %% shape:actor x:100 y:100 w:120 h:40\n    BA[\"Business Analyst\"] %% shape:rectangle x:300 y:250 w:120 h:40\n\n    KH -->|Gửi yêu cầu| BA;\n");
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -377,11 +423,17 @@ const IDEPageContent = () => {
     if (monacoRef.current) monacoRef.current.monaco.editor.setModelMarkers(monacoRef.current.editor.getModel(), "mermaid", []);
   }, []);
 
+  // Bắt Event từ cả Node và Edge khi sửa chữ
   useEffect(() => {
-    const handler = (e: any) => { updateCodeFromFlow(e.detail.nodes, edges); };
-    window.addEventListener('mermaid-rebuild', handler);
-    return () => window.removeEventListener('mermaid-rebuild', handler);
-  }, [edges, updateCodeFromFlow]);
+    const nodeHandler = (e: any) => { updateCodeFromFlow(e.detail.nodes, edges); };
+    const edgeHandler = (e: any) => { updateCodeFromFlow(nodes, e.detail.edges); };
+    window.addEventListener('mermaid-rebuild', nodeHandler);
+    window.addEventListener('mermaid-rebuild-edge', edgeHandler);
+    return () => {
+      window.removeEventListener('mermaid-rebuild', nodeHandler);
+      window.removeEventListener('mermaid-rebuild-edge', edgeHandler);
+    };
+  }, [nodes, edges, updateCodeFromFlow]);
 
   const handleSyncCodeToDiagram = useCallback(() => {
     try {
@@ -390,9 +442,7 @@ const IDEPageContent = () => {
       setEdges([...parsedData.edges]);
       
       setParseError(null);
-      if (monacoRef.current) {
-        monacoRef.current.monaco.editor.setModelMarkers(monacoRef.current.editor.getModel(), "mermaid", []);
-      }
+      if (monacoRef.current) monacoRef.current.monaco.editor.setModelMarkers(monacoRef.current.editor.getModel(), "mermaid", []);
     } catch (err: any) { 
       setParseError(err);
       setIsTerminalOpen(true);
@@ -402,8 +452,10 @@ const IDEPageContent = () => {
           message: err.message, severity: monacoRef.current.monaco.MarkerSeverity.Error
         }]);
       }
+      alert(`${err.message}\n\nThe system will restore the source code to the last valid Canvas state.`);
+      updateCodeFromFlow(nodes, edges);
     }
-  }, [code]);
+  }, [code, nodes, edges, updateCodeFromFlow]);
 
   useEffect(() => { handleSyncCodeToDiagram(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -415,9 +467,7 @@ const IDEPageContent = () => {
 
   const onNodesChange = useCallback((changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
-  
   const onNodeDragStop = useCallback(() => { updateCodeFromFlow(nodes, edges); }, [nodes, edges, updateCodeFromFlow]);
-  const onNodeResizeStop = useCallback(() => { updateCodeFromFlow(nodes, edges); }, [nodes, edges, updateCodeFromFlow]);
   
   const onConnect = useCallback((params: Connection) => {
     const rawEdge = { ...params, id: `e${params.source}-${params.target}-${Date.now()}`, type: 'smart', markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 } } as Edge;
@@ -426,6 +476,10 @@ const IDEPageContent = () => {
   }, [nodes, edges, updateCodeFromFlow]);
 
   const handleMove = useCallback((event: any, viewport: Viewport) => { setZoomLevel(viewport.zoom); }, []);
+
+  const handleCanvasMouseUp = useCallback(() => {
+    updateCodeFromFlow(nodes, edges);
+  }, [nodes, edges, updateCodeFromFlow]);
 
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent) => {
     if (coordsRef.current && reactFlowWrapper.current) {
@@ -477,7 +531,7 @@ const IDEPageContent = () => {
   const handleEditItem = useCallback(() => {
     if (!contextMenu) return;
     const currentLabel = contextMenu.type === 'node' ? nodes.find(n => n.id === contextMenu.id)?.data.label : edges.find(e => e.id === contextMenu.id)?.label;
-    const newLabel = prompt("Nhập nội dung mới:", currentLabel || "");
+    const newLabel = prompt("Enter new text:", currentLabel || "");
     if (newLabel !== null) {
       if (contextMenu.type === 'node') {
         const newNodes = nodes.map(n => n.id === contextMenu.id ? { ...n, data: { ...n.data, label: newLabel } } : n);
@@ -507,21 +561,34 @@ const IDEPageContent = () => {
   const theme = isDarkMode ? { bgMain: "bg-[#1e1e1e]", text: "text-[#cccccc]", textMuted: "text-slate-400", border: "border-[#2b2b2b]", toolbar: "bg-[#181818]", hover: "hover:bg-[#333333]", searchBg: "bg-[#2b2b2b]", searchBorder: "border-[#3c3c3c]", itemHover: "hover:bg-[#2a2d2e]", itemActive: "bg-[#37373d]", editorTabTop: "border-blue-500", shapeBorder: "border-[#4b4b4b]", shapeFill: "bg-[#252526]" } : { bgMain: "bg-white", text: "text-slate-800", textMuted: "text-slate-500", border: "border-slate-300", toolbar: "bg-[#f3f3f3]", hover: "hover:bg-[#e4e4e4]", searchBg: "bg-white", searchBorder: "border-slate-300", itemHover: "hover:bg-slate-100", itemActive: "bg-[#e4e6f1] text-blue-700", editorTabTop: "border-blue-600", shapeBorder: "border-slate-300", shapeFill: "bg-white" };
   const toggleShapeMenu = (category: string) => setOpenShapeMenus(prev => ({ ...prev, [category]: !prev[category] }));
   
-  // --- KÉO THẢ RESIZE 3 CỘT (Trái, Giữa, Phải) ---
   const handleMouseMove = useCallback((e: MouseEvent) => { 
-    if (isDraggingExplorer) {
-      setExplorerWidth(Math.max(150, Math.min(e.clientX, 500))); 
-    } else if (isDraggingRightPanel) {
-      setRightPanelWidth(Math.max(150, Math.min(window.innerWidth - e.clientX, 500))); 
-    } else if (isDraggingEditor) { 
-      const offset = isSidebarOpen ? explorerWidth : 0; 
-      const rightPanelOffset = isRightPanelOpen ? rightPanelWidth : 0; 
-      setEditorWidth(Math.max(200, Math.min(e.clientX - offset, window.innerWidth - 300 - rightPanelOffset))); 
-    } 
+    if (isDraggingExplorer) setExplorerWidth(Math.max(150, Math.min(e.clientX, 500))); 
+    else if (isDraggingRightPanel) setRightPanelWidth(Math.max(150, Math.min(window.innerWidth - e.clientX, 500))); 
+    else if (isDraggingEditor) { const offset = isSidebarOpen ? explorerWidth : 0; const rightPanelOffset = isRightPanelOpen ? rightPanelWidth : 0; setEditorWidth(Math.max(200, Math.min(e.clientX - offset, window.innerWidth - 300 - rightPanelOffset))); } 
   }, [isDraggingExplorer, isDraggingEditor, isDraggingRightPanel, isSidebarOpen, explorerWidth, isRightPanelOpen, rightPanelWidth]);
   
   const handleMouseUpDrag = useCallback(() => { setIsDraggingExplorer(false); setIsDraggingEditor(false); setIsDraggingRightPanel(false); }, []);
-  useEffect(() => { if (isDraggingExplorer || isDraggingEditor || isDraggingRightPanel) { document.addEventListener("mousemove", handleMouseMove); document.addEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "none"; } else { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "auto"; } return () => { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "auto"; }; }, [isDraggingExplorer, isDraggingEditor, isDraggingRightPanel, handleMouseMove, handleMouseUpDrag]);
+  
+  useEffect(() => { 
+    if (isDraggingExplorer || isDraggingEditor || isDraggingRightPanel) { 
+      document.addEventListener("mousemove", handleMouseMove); document.addEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "none"; 
+    } else { 
+      document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "auto"; 
+    } 
+    return () => { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "auto"; }; 
+  }, [isDraggingExplorer, isDraggingEditor, isDraggingRightPanel, handleMouseMove, handleMouseUpDrag]);
+
+  const handleShapeMouseEnter = (e: React.MouseEvent, item: any) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    hoverTimeout.current = setTimeout(() => {
+      setHoveredShape({ x: rect.left, y: rect.top + rect.height / 2, item });
+    }, 500); 
+  };
+
+  const handleShapeMouseLeave = () => {
+    clearTimeout(hoverTimeout.current);
+    setHoveredShape(null);
+  };
 
   const renderShapeItems = (category: string) => {
     const defaultPlaceholder = [...Array(4)].map((_, i) => (<div key={i} className={`aspect-square rounded ${theme.shapeBorder} border ${theme.shapeFill} cursor-not-allowed flex items-center justify-center`}><div className={`w-4 h-4 border-2 border-dashed ${theme.shapeBorder}`}></div></div>));
@@ -550,7 +617,11 @@ const IDEPageContent = () => {
             { type: 'actor', label: 'Actor', icon: <User size={18} className={theme.textMuted} /> }, 
             { type: 'note', label: 'Note', icon: <StickyNote size={18} className={theme.textMuted} /> }
           ].map(item => (
-            <div key={item.label} onClick={() => onShapeClick(item.type, item.label)} draggable onDragStart={(event) => onDragStart(event, item.type, item.label)} className={`aspect-square rounded ${theme.shapeBorder} border ${theme.shapeFill} hover:border-blue-500 hover:shadow-sm cursor-pointer active:scale-95 flex items-center justify-center transition-all`} title={item.label}>
+            <div 
+              key={item.label} onClick={() => onShapeClick(item.type, item.label)} draggable onDragStart={(event) => onDragStart(event, item.type, item.label)} 
+              onMouseEnter={(e) => handleShapeMouseEnter(e, item)} onMouseLeave={handleShapeMouseLeave}
+              className={`aspect-square rounded ${theme.shapeBorder} border ${theme.shapeFill} hover:border-blue-500 hover:shadow-sm cursor-pointer active:scale-95 flex items-center justify-center transition-all`} title={item.label}
+            >
               {item.icon}
             </div>
           ))}
@@ -566,12 +637,32 @@ const IDEPageContent = () => {
 
   return (
     <div className={`flex flex-col h-screen w-full ${theme.bgMain} ${theme.text} font-sans overflow-hidden transition-colors duration-200`} onClick={closeContextMenu}>
+      
+      {/* SHAPE TOOLTIP PORTAL (Fixed) */}
+      {hoveredShape && (
+        <div 
+          className="fixed z-[9999] bg-[#1e293b] text-white text-xs rounded-md shadow-2xl p-3 w-48 pointer-events-none transform -translate-x-full -translate-y-1/2 transition-opacity"
+          style={{ top: hoveredShape.y, left: hoveredShape.x - 10 }}
+        >
+          <div className="flex flex-col items-center gap-2">
+             <div className="w-12 h-12 flex items-center justify-center bg-[#0f172a] rounded border border-slate-600">
+                {hoveredShape.item.icon}
+             </div>
+             <div className="font-bold text-[13px]">{hoveredShape.item.label}</div>
+             <div className="text-center text-slate-300 leading-snug">{shapeDescriptions[hoveredShape.item.type]}</div>
+          </div>
+          <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-2 h-2 bg-[#1e293b] transform rotate-45"></div>
+        </div>
+      )}
+
+      {/* CONTEXT MENU */}
       {contextMenu && (
         <div style={{ top: contextMenu.top, left: contextMenu.left }} className="fixed z-[100] bg-white border border-slate-200 shadow-xl rounded-md py-1 w-36 text-sm">
           <button onClick={handleEditItem} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 transition">Edit text</button>
           <button onClick={handleDeleteItem} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 border-t border-slate-100 transition font-medium">Delete</button>
         </div>
       )}
+
       <div className={`flex items-center justify-between h-10 px-3 ${theme.toolbar} border-b ${theme.border} text-sm select-none shrink-0`}>
         <div className="flex items-center gap-4">
           <Menu size={16} className={`cursor-pointer ${isDarkMode ? 'hover:text-white' : 'hover:text-black'}`} />
@@ -587,7 +678,6 @@ const IDEPageContent = () => {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* EXPLORER TRAY */}
         {isSidebarOpen && (
           <div style={{ width: explorerWidth }} className={`flex flex-col shrink-0 overflow-y-auto ${theme.bgMain}`}>
             <div className={`flex items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wider ${theme.textMuted}`}><span>Explorer</span><MoreHorizontal size={14} className={`cursor-pointer ${isDarkMode ? 'hover:text-white' : 'hover:text-black'}`} /></div>
@@ -600,7 +690,6 @@ const IDEPageContent = () => {
         {isSidebarOpen && <div className={`w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-10 ${theme.border} border-l`} onMouseDown={() => setIsDraggingExplorer(true)} />}
 
         <div className="flex flex-1 overflow-hidden">
-          {/* EDITOR COLUMN (Chứa Editor và Terminal - Fix lỗi Flex tràn màn hình) */}
           <div style={{ width: editorWidth }} className="flex flex-col shrink-0 min-w-[200px] h-full overflow-hidden">
             {isTabOpen ? (
               <div className="flex flex-col flex-1 overflow-hidden">
@@ -618,7 +707,6 @@ const IDEPageContent = () => {
               <div className={`flex items-center justify-center flex-col flex-1 shrink-0 overflow-hidden ${theme.bgMain}`}><FileCode size={48} className={theme.textMuted} strokeWidth={1} /><p className={`mt-4 text-sm ${theme.textMuted}`}>No file is open</p><button onClick={() => setIsTabOpen(true)} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Open diagram.mmd</button></div>
             )}
 
-            {/* TERMINAL PANEL */}
             {isTerminalOpen && (
               <div className={`h-48 flex flex-col shrink-0 border-t ${theme.border} ${theme.bgMain}`}>
                  <div className={`flex text-[11px] uppercase tracking-wider ${theme.textMuted} border-b ${theme.border} px-4 py-1 gap-4 shrink-0`}>
@@ -643,7 +731,6 @@ const IDEPageContent = () => {
 
           <div className={`w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-10 ${theme.border} border-l`} onMouseDown={() => setIsDraggingEditor(true)} />
 
-          {/* CANVAS AREA */}
           <div className="flex-1 relative bg-slate-50 min-w-[200px] flex flex-col" ref={reactFlowWrapper}>
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 bg-white rounded-full shadow-lg border border-slate-200 text-slate-700">
               <button onClick={handleSyncCodeToDiagram} className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-full transition shadow-sm" title="Manual Sync Text to Diagram">
@@ -661,7 +748,7 @@ const IDEPageContent = () => {
 
             <div className={`absolute top-4 left-4 z-10 px-2 py-1 text-xs font-medium rounded-md shadow border ${theme.border} ${theme.bgMain} ${theme.text}`}>{(zoomLevel * 100).toFixed(0)}%</div>
             
-            <div className="flex-1 w-full h-full" onPointerMove={handleCanvasPointerMove}>
+            <div className="flex-1 w-full h-full" onPointerMove={handleCanvasPointerMove} onMouseUp={handleCanvasMouseUp}>
               <ReactFlow 
                 nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} 
@@ -680,12 +767,10 @@ const IDEPageContent = () => {
           </div>
         </div>
 
-        {/* TRỤC KÉO THẢ CHO SHAPES LIBRARY PANEL */}
         {isRightPanelOpen && (
           <div className={`w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-10 ${theme.border} border-l`} onMouseDown={() => setIsDraggingRightPanel(true)} />
         )}
 
-        {/* SHAPES LIBRARY PANEL */}
         {isRightPanelOpen && (
           <div style={{ width: rightPanelWidth }} className={`flex flex-col shrink-0 overflow-y-auto ${theme.bgMain} pb-10`}>
             <div className={`flex items-center px-4 py-2 text-xs font-semibold uppercase tracking-wider ${theme.textMuted} border-b ${theme.border}`}><span>Shapes Library</span></div>
