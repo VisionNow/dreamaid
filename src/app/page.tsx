@@ -40,14 +40,28 @@ import {
   MessageSquare, Box, X, Wand2
 } from "lucide-react";
 
-// --- 1. CUSTOM SHAPE NODE (Hỗ trợ 4 nút kết nối & Resize) ---
+// --- 1. CUSTOM SHAPE NODE ---
 const CustomShapeNode = ({ id, data, selected, style }: any) => {
   const { shapeType, label } = data;
   const [isHovered, setIsHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(label);
   
+  const { setNodes } = useReactFlow();
   const connectionNodeId = useStore((state) => state.connectionNodeId);
   const isConnecting = !!connectionNodeId;
   const showHandles = selected || isHovered || isConnecting;
+
+  useEffect(() => { setEditValue(label); }, [label]);
+
+  const saveEdit = () => {
+    setIsEditing(false);
+    setNodes((nds) => {
+      const newNodes = nds.map((n) => n.id === id ? { ...n, data: { ...n.data, label: editValue } } : n);
+      setTimeout(() => window.dispatchEvent(new CustomEvent('mermaid-rebuild', { detail: { nodes: newNodes } })), 0);
+      return newNodes;
+    });
+  };
 
   let shapeStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -71,24 +85,29 @@ const CustomShapeNode = ({ id, data, selected, style }: any) => {
 
       <Handle type="target" position={Position.Top} id="top-t" style={{...handleStyle, top: '-4px'}} />
       <Handle type="source" position={Position.Top} id="top-s" style={{...handleStyle, top: '-4px'}} />
-      
       <Handle type="target" position={Position.Bottom} id="bot-t" style={{...handleStyle, bottom: '-4px'}} />
       <Handle type="source" position={Position.Bottom} id="bot-s" style={{...handleStyle, bottom: '-4px'}} />
-      
       <Handle type="target" position={Position.Right} id="right-t" style={{...handleStyle, right: '-4px'}} />
       <Handle type="source" position={Position.Right} id="right-s" style={{...handleStyle, right: '-4px'}} />
-      
       <Handle type="target" position={Position.Left} id="left-t" style={{...handleStyle, left: '-4px'}} />
       <Handle type="source" position={Position.Left} id="left-s" style={{...handleStyle, left: '-4px'}} />
       
-      <div style={shapeStyle} className="relative z-10">
-        <span style={shapeType === 'diamond' ? { transform: 'rotate(-45deg)' } : shapeType === 'parallelogram' ? { transform: 'skewX(15deg)' } : {}}>{label}</span>
+      <div style={shapeStyle} className="relative z-10" onDoubleClick={() => setIsEditing(true)}>
+        <span style={shapeType === 'diamond' ? { transform: 'rotate(-45deg)' } : shapeType === 'parallelogram' ? { transform: 'skewX(15deg)' } : {}}>
+          {isEditing ? (
+            <input 
+              autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} 
+              onBlur={saveEdit} onKeyDown={e => e.key === 'Enter' && saveEdit()}
+              className="w-[90%] text-center text-slate-800 bg-transparent outline-none border-b border-blue-400"
+            />
+          ) : label}
+        </span>
       </div>
     </div>
   );
 };
 
-// --- 2. SMART EDGE (Xử lý Mũi tên cong Elip, Self-loop & Tránh đè) ---
+// --- 2. SMART EDGE ---
 const SmartEdge = ({ id, source, target, style, markerEnd, markerStart, label, data }: EdgeProps) => {
   const sourceNode = useStore(useCallback((store) => store.nodeInternals.get(source), [source]));
   const targetNode = useStore(useCallback((store) => store.nodeInternals.get(target), [target]));
@@ -147,12 +166,18 @@ const SmartEdge = ({ id, source, target, style, markerEnd, markerStart, label, d
     const mx = (sourceX + targetX) / 2; const my = (sourceY + targetY) / 2;
     const length = Math.sqrt(dx * dx + dy * dy) || 1; 
     const nx = -dy / length; const ny = dx / length;
-    const curveOffset = 60; const direction = source > target ? 1 : -1;
-    const cx = mx + nx * curveOffset * direction; const cy = my + ny * curveOffset * direction;
+    const curveOffset = 60; 
+    
+    const cx = mx + nx * curveOffset; 
+    const cy = my + ny * curveOffset;
 
-    edgePath = `M ${sourceX} ${sourceY} Q ${cx} ${cy} ${targetX} ${targetY}`;
-    labelX = 0.25 * sourceX + 0.5 * cx + 0.25 * targetX;
-    labelY = 0.25 * sourceY + 0.5 * cy + 0.25 * targetY;
+    const shiftOffset = 15;
+    const finalSourceX = sourceX + nx * shiftOffset; const finalSourceY = sourceY + ny * shiftOffset;
+    const finalTargetX = targetX + nx * shiftOffset; const finalTargetY = targetY + ny * shiftOffset;
+
+    edgePath = `M ${finalSourceX} ${finalSourceY} Q ${cx} ${cy} ${finalTargetX} ${finalTargetY}`;
+    labelX = 0.25 * finalSourceX + 0.5 * cx + 0.25 * finalTargetX;
+    labelY = 0.25 * finalSourceY + 0.5 * cy + 0.25 * finalTargetY;
   } else {
     [edgePath, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition: sPos, targetX, targetY, targetPosition: tPos, borderRadius: 16 });
   }
@@ -227,12 +252,11 @@ const parseMermaid = (code: string) => {
 
   lines.forEach((line, index) => {
     let cleanLine = line.trim();
-    if (!cleanLine || cleanLine.startsWith('graph') || cleanLine.startsWith('flowchart')) return;
+    if (!cleanLine || cleanLine.startsWith('graph') || cleanLine.startsWith('flowchart') || cleanLine.startsWith('%%')) return;
     
     let metadata = { shapeType: 'rectangle', x: undefined as number|undefined, y: undefined as number|undefined, w: 120, h: 40 };
     let codePart = cleanLine;
 
-    // Tách metadata
     if (cleanLine.includes('%%')) {
        const parts = cleanLine.split('%%');
        codePart = parts[0].trim();
@@ -244,7 +268,7 @@ const parseMermaid = (code: string) => {
        const hMatch = metaStr.match(/h:(-?\d+)/); if (hMatch) metadata.h = parseInt(hMatch[1]);
     }
     
-    if (!codePart) return; // Nếu dòng chỉ có comment thì bỏ qua
+    if (!codePart) return; 
 
     const edgeMatch = codePart.match(edgeRegex);
     if (edgeMatch) {
@@ -273,9 +297,7 @@ const parseMermaid = (code: string) => {
       }
       return;
     }
-
-    // Nếu không khớp với cấu trúc Node hay Edge -> Quăng lỗi
-    throw new Error(`Lỗi cú pháp tại dòng ${index + 1}: "${codePart}"`);
+    throw { line: index + 1, message: "Lỗi cú pháp Mermaid không hợp lệ.", lineText: codePart };
   });
 
   return { nodes: Array.from(nodesMap.values()), edges: consolidateEdges(edges) };
@@ -320,17 +342,27 @@ const SHAPE_CATEGORIES = ["General", "Flowchart", "Misc", "Basic", "Arrows", "En
 const IDEPageContent = () => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const coordsRef = useRef<HTMLDivElement>(null); 
+  const monacoRef = useRef<any>(null); 
+  
   const { screenToFlowPosition } = useReactFlow();
 
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState<boolean>(true);
   const [isTabOpen, setIsTabOpen] = useState<boolean>(true);
+  const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false); 
+  const [parseError, setParseError] = useState<{line: number, message: string, lineText: string} | null>(null);
+
   const [openShapeMenus, setOpenShapeMenus] = useState<Record<string, boolean>>({ "General": true, "Flowchart": true });
+  
+  // States cho Resizable Panels
   const [explorerWidth, setExplorerWidth] = useState<number>(256);
   const [editorWidth, setEditorWidth] = useState<number>(500);
+  const [rightPanelWidth, setRightPanelWidth] = useState<number>(256);
+  
   const [isDraggingExplorer, setIsDraggingExplorer] = useState(false);
   const [isDraggingEditor, setIsDraggingEditor] = useState(false);
+  const [isDraggingRightPanel, setIsDraggingRightPanel] = useState(false);
 
   const [contextMenu, setContextMenu] = useState<{ id: string; top: number; left: number; type: 'node' | 'edge' } | null>(null);
 
@@ -341,20 +373,37 @@ const IDEPageContent = () => {
 
   const updateCodeFromFlow = useCallback((currentNodes: Node[], currentEdges: Edge[]) => {
     setCode(generateMermaidFromFlow(currentNodes, currentEdges));
+    setParseError(null);
+    if (monacoRef.current) monacoRef.current.monaco.editor.setModelMarkers(monacoRef.current.editor.getModel(), "mermaid", []);
   }, []);
 
-  // --- STRICT SYNC (Phân tích mã nguồn có khôi phục lỗi) ---
+  useEffect(() => {
+    const handler = (e: any) => { updateCodeFromFlow(e.detail.nodes, edges); };
+    window.addEventListener('mermaid-rebuild', handler);
+    return () => window.removeEventListener('mermaid-rebuild', handler);
+  }, [edges, updateCodeFromFlow]);
+
   const handleSyncCodeToDiagram = useCallback(() => {
     try {
       const parsedData = parseMermaid(code);
       setNodes([...parsedData.nodes]);
       setEdges([...parsedData.edges]);
-    } catch (error: any) { 
-      console.error("Lỗi parse Mermaid:", error);
-      alert(`${error.message}\n\nHệ thống sẽ khôi phục lại mã nguồn về trạng thái hợp lệ của Canvas.`);
-      updateCodeFromFlow(nodes, edges);
+      
+      setParseError(null);
+      if (monacoRef.current) {
+        monacoRef.current.monaco.editor.setModelMarkers(monacoRef.current.editor.getModel(), "mermaid", []);
+      }
+    } catch (err: any) { 
+      setParseError(err);
+      setIsTerminalOpen(true);
+      if (monacoRef.current && err.line) {
+        monacoRef.current.monaco.editor.setModelMarkers(monacoRef.current.editor.getModel(), "mermaid", [{
+          startLineNumber: err.line, startColumn: 1, endLineNumber: err.line, endColumn: err.lineText.length + 1,
+          message: err.message, severity: monacoRef.current.monaco.MarkerSeverity.Error
+        }]);
+      }
     }
-  }, [code, nodes, edges, updateCodeFromFlow]);
+  }, [code]);
 
   useEffect(() => { handleSyncCodeToDiagram(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -368,6 +417,7 @@ const IDEPageContent = () => {
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
   
   const onNodeDragStop = useCallback(() => { updateCodeFromFlow(nodes, edges); }, [nodes, edges, updateCodeFromFlow]);
+  const onNodeResizeStop = useCallback(() => { updateCodeFromFlow(nodes, edges); }, [nodes, edges, updateCodeFromFlow]);
   
   const onConnect = useCallback((params: Connection) => {
     const rawEdge = { ...params, id: `e${params.source}-${params.target}-${Date.now()}`, type: 'smart', markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 } } as Edge;
@@ -376,11 +426,6 @@ const IDEPageContent = () => {
   }, [nodes, edges, updateCodeFromFlow]);
 
   const handleMove = useCallback((event: any, viewport: Viewport) => { setZoomLevel(viewport.zoom); }, []);
-
-  // Hứng sự kiện onMouseUp trên toàn khung Canvas để lưu sự kiện kết thúc Resize/Move
-  const handleCanvasMouseUp = useCallback(() => {
-    updateCodeFromFlow(nodes, edges);
-  }, [nodes, edges, updateCodeFromFlow]);
 
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent) => {
     if (coordsRef.current && reactFlowWrapper.current) {
@@ -461,9 +506,22 @@ const IDEPageContent = () => {
 
   const theme = isDarkMode ? { bgMain: "bg-[#1e1e1e]", text: "text-[#cccccc]", textMuted: "text-slate-400", border: "border-[#2b2b2b]", toolbar: "bg-[#181818]", hover: "hover:bg-[#333333]", searchBg: "bg-[#2b2b2b]", searchBorder: "border-[#3c3c3c]", itemHover: "hover:bg-[#2a2d2e]", itemActive: "bg-[#37373d]", editorTabTop: "border-blue-500", shapeBorder: "border-[#4b4b4b]", shapeFill: "bg-[#252526]" } : { bgMain: "bg-white", text: "text-slate-800", textMuted: "text-slate-500", border: "border-slate-300", toolbar: "bg-[#f3f3f3]", hover: "hover:bg-[#e4e4e4]", searchBg: "bg-white", searchBorder: "border-slate-300", itemHover: "hover:bg-slate-100", itemActive: "bg-[#e4e6f1] text-blue-700", editorTabTop: "border-blue-600", shapeBorder: "border-slate-300", shapeFill: "bg-white" };
   const toggleShapeMenu = (category: string) => setOpenShapeMenus(prev => ({ ...prev, [category]: !prev[category] }));
-  const handleMouseMove = useCallback((e: MouseEvent) => { if (isDraggingExplorer) setExplorerWidth(Math.max(150, Math.min(e.clientX, 500))); else if (isDraggingEditor) { const offset = isSidebarOpen ? explorerWidth : 0; const rightPanelOffset = isRightPanelOpen ? 256 : 0; setEditorWidth(Math.max(200, Math.min(e.clientX - offset, window.innerWidth - 300 - rightPanelOffset))); } }, [isDraggingExplorer, isDraggingEditor, isSidebarOpen, explorerWidth, isRightPanelOpen]);
-  const handleMouseUpDrag = useCallback(() => { setIsDraggingExplorer(false); setIsDraggingEditor(false); }, []);
-  useEffect(() => { if (isDraggingExplorer || isDraggingEditor) { document.addEventListener("mousemove", handleMouseMove); document.addEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "none"; } else { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "auto"; } return () => { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "auto"; }; }, [isDraggingExplorer, isDraggingEditor, handleMouseMove, handleMouseUpDrag]);
+  
+  // --- KÉO THẢ RESIZE 3 CỘT (Trái, Giữa, Phải) ---
+  const handleMouseMove = useCallback((e: MouseEvent) => { 
+    if (isDraggingExplorer) {
+      setExplorerWidth(Math.max(150, Math.min(e.clientX, 500))); 
+    } else if (isDraggingRightPanel) {
+      setRightPanelWidth(Math.max(150, Math.min(window.innerWidth - e.clientX, 500))); 
+    } else if (isDraggingEditor) { 
+      const offset = isSidebarOpen ? explorerWidth : 0; 
+      const rightPanelOffset = isRightPanelOpen ? rightPanelWidth : 0; 
+      setEditorWidth(Math.max(200, Math.min(e.clientX - offset, window.innerWidth - 300 - rightPanelOffset))); 
+    } 
+  }, [isDraggingExplorer, isDraggingEditor, isDraggingRightPanel, isSidebarOpen, explorerWidth, isRightPanelOpen, rightPanelWidth]);
+  
+  const handleMouseUpDrag = useCallback(() => { setIsDraggingExplorer(false); setIsDraggingEditor(false); setIsDraggingRightPanel(false); }, []);
+  useEffect(() => { if (isDraggingExplorer || isDraggingEditor || isDraggingRightPanel) { document.addEventListener("mousemove", handleMouseMove); document.addEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "none"; } else { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "auto"; } return () => { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUpDrag); document.body.style.userSelect = "auto"; }; }, [isDraggingExplorer, isDraggingEditor, isDraggingRightPanel, handleMouseMove, handleMouseUpDrag]);
 
   const renderShapeItems = (category: string) => {
     const defaultPlaceholder = [...Array(4)].map((_, i) => (<div key={i} className={`aspect-square rounded ${theme.shapeBorder} border ${theme.shapeFill} cursor-not-allowed flex items-center justify-center`}><div className={`w-4 h-4 border-2 border-dashed ${theme.shapeBorder}`}></div></div>));
@@ -502,9 +560,9 @@ const IDEPageContent = () => {
     return defaultPlaceholder;
   };
 
-  function handleEditorChange(value: string | undefined, ev: editor.IModelContentChangedEvent | undefined): void {
-    setCode(value || "");
-  }
+  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
+    monacoRef.current = { editor, monaco };
+  };
 
   return (
     <div className={`flex flex-col h-screen w-full ${theme.bgMain} ${theme.text} font-sans overflow-hidden transition-colors duration-200`} onClick={closeContextMenu}>
@@ -523,12 +581,13 @@ const IDEPageContent = () => {
         <div className="flex items-center gap-1">
           <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-1 mr-2 rounded transition ${theme.hover}`} title="Toggle Theme">{isDarkMode ? <Sun size={16} className="text-yellow-400" /> : <Moon size={16} className="text-slate-600" />}</button>
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`p-1 rounded transition ${isSidebarOpen ? (isDarkMode ? 'bg-[#333333] text-white' : 'bg-[#e4e4e4] text-black') : theme.hover}`} title="Toggle Primary Side Bar"><PanelLeft size={16} /></button>
-          <button className={`p-1 ${theme.hover} rounded transition`}><PanelBottom size={16} /></button>
+          <button onClick={() => setIsTerminalOpen(!isTerminalOpen)} className={`p-1 rounded transition ${isTerminalOpen ? (isDarkMode ? 'bg-[#333333] text-white' : 'bg-[#e4e4e4] text-black') : theme.hover}`} title="Toggle Terminal"><PanelBottom size={16} /></button>
           <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className={`p-1 rounded transition ${isRightPanelOpen ? (isDarkMode ? 'bg-[#333333] text-white' : 'bg-[#e4e4e4] text-black') : theme.hover}`} title="Toggle Right Panel"><PanelRight size={16} /></button>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
+        {/* EXPLORER TRAY */}
         {isSidebarOpen && (
           <div style={{ width: explorerWidth }} className={`flex flex-col shrink-0 overflow-y-auto ${theme.bgMain}`}>
             <div className={`flex items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wider ${theme.textMuted}`}><span>Explorer</span><MoreHorizontal size={14} className={`cursor-pointer ${isDarkMode ? 'hover:text-white' : 'hover:text-black'}`} /></div>
@@ -541,24 +600,50 @@ const IDEPageContent = () => {
         {isSidebarOpen && <div className={`w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-10 ${theme.border} border-l`} onMouseDown={() => setIsDraggingExplorer(true)} />}
 
         <div className="flex flex-1 overflow-hidden">
-          {isTabOpen ? (
-            <div style={{ width: editorWidth }} className="flex flex-col shrink-0 min-w-[200px]">
-              <div className={`flex items-center h-9 ${theme.bgMain} border-b ${theme.border} overflow-x-auto shrink-0`}>
-                <div className={`flex items-center gap-2 px-3 py-1.5 ${theme.bgMain} border-t-2 ${theme.editorTabTop} text-[13px] cursor-pointer group`}>
-                  <FileCode size={14} className="text-yellow-400" /> <span className={isDarkMode ? 'text-white' : 'text-black'}>diagram.mmd</span>
-                  <div className="ml-1 p-[2px] rounded-sm opacity-0 group-hover:opacity-100 hover:bg-slate-500/30 transition-opacity" onClick={(e) => { e.stopPropagation(); setIsTabOpen(false); }} title="Close Tab"><X size={14} className={isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-black"} /></div>
+          {/* EDITOR COLUMN (Chứa Editor và Terminal - Fix lỗi Flex tràn màn hình) */}
+          <div style={{ width: editorWidth }} className="flex flex-col shrink-0 min-w-[200px] h-full overflow-hidden">
+            {isTabOpen ? (
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <div className={`flex items-center h-9 ${theme.bgMain} border-b ${theme.border} overflow-x-auto shrink-0`}>
+                  <div className={`flex items-center gap-2 px-3 py-1.5 ${theme.bgMain} border-t-2 ${theme.editorTabTop} text-[13px] cursor-pointer group`}>
+                    <FileCode size={14} className="text-yellow-400" /> <span className={isDarkMode ? 'text-white' : 'text-black'}>diagram.mmd</span>
+                    <div className="ml-1 p-[2px] rounded-sm opacity-0 group-hover:opacity-100 hover:bg-slate-500/30 transition-opacity" onClick={(e) => { e.stopPropagation(); setIsTabOpen(false); }} title="Close Tab"><X size={14} className={isDarkMode ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-black"} /></div>
+                  </div>
+                </div>
+                <div className={`flex-1 overflow-hidden ${theme.bgMain}`} onKeyDown={(e) => e.stopPropagation()}>
+                  <Editor height="100%" defaultLanguage="markdown" theme={isDarkMode ? "vs-dark" : "light"} value={code} onChange={(val) => setCode(val || "")} onMount={handleEditorDidMount} options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: "on", padding: { top: 16 } }} />
                 </div>
               </div>
-              <div className={`flex-1 ${theme.bgMain}`} onKeyDown={(e) => e.stopPropagation()}>
-                <Editor height="100%" defaultLanguage="markdown" theme={isDarkMode ? "vs-dark" : "light"} value={code} onChange={handleEditorChange} options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: "on", padding: { top: 16 } }} />
+            ) : (
+              <div className={`flex items-center justify-center flex-col flex-1 shrink-0 overflow-hidden ${theme.bgMain}`}><FileCode size={48} className={theme.textMuted} strokeWidth={1} /><p className={`mt-4 text-sm ${theme.textMuted}`}>No file is open</p><button onClick={() => setIsTabOpen(true)} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Open diagram.mmd</button></div>
+            )}
+
+            {/* TERMINAL PANEL */}
+            {isTerminalOpen && (
+              <div className={`h-48 flex flex-col shrink-0 border-t ${theme.border} ${theme.bgMain}`}>
+                 <div className={`flex text-[11px] uppercase tracking-wider ${theme.textMuted} border-b ${theme.border} px-4 py-1 gap-4 shrink-0`}>
+                    <span className={`cursor-pointer border-b ${isDarkMode ? 'border-blue-500 text-slate-200' : 'border-blue-600 text-slate-800'}`}>Problems</span>
+                    <span className="cursor-pointer hover:text-slate-200">Output</span>
+                    <span className="cursor-pointer hover:text-slate-200">Terminal</span>
+                 </div>
+                 <div className="p-3 text-[13px] font-mono overflow-y-auto flex-1">
+                   {parseError ? (
+                     <div className="text-red-500">
+                       <p className="font-semibold mb-1">[{parseError.line}] {parseError.message}</p>
+                       <p className="text-slate-400">{parseError.lineText}</p>
+                       <p>{"^".repeat(parseError.lineText.length)}</p>
+                     </div>
+                   ) : (
+                     <div className="text-green-500/80">No problems have been detected in the workspace.</div>
+                   )}
+                 </div>
               </div>
-            </div>
-          ) : (
-            <div style={{ width: editorWidth }} className={`flex items-center justify-center flex-col shrink-0 min-w-[200px] ${theme.bgMain}`}><FileCode size={48} className={theme.textMuted} strokeWidth={1} /><p className={`mt-4 text-sm ${theme.textMuted}`}>No file is open</p><button onClick={() => setIsTabOpen(true)} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Open diagram.mmd</button></div>
-          )}
+            )}
+          </div>
 
           <div className={`w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-10 ${theme.border} border-l`} onMouseDown={() => setIsDraggingEditor(true)} />
 
+          {/* CANVAS AREA */}
           <div className="flex-1 relative bg-slate-50 min-w-[200px] flex flex-col" ref={reactFlowWrapper}>
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 bg-white rounded-full shadow-lg border border-slate-200 text-slate-700">
               <button onClick={handleSyncCodeToDiagram} className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-full transition shadow-sm" title="Manual Sync Text to Diagram">
@@ -576,7 +661,7 @@ const IDEPageContent = () => {
 
             <div className={`absolute top-4 left-4 z-10 px-2 py-1 text-xs font-medium rounded-md shadow border ${theme.border} ${theme.bgMain} ${theme.text}`}>{(zoomLevel * 100).toFixed(0)}%</div>
             
-            <div className="flex-1 w-full h-full" onPointerMove={handleCanvasPointerMove} onMouseUp={handleCanvasMouseUp}>
+            <div className="flex-1 w-full h-full" onPointerMove={handleCanvasPointerMove}>
               <ReactFlow 
                 nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} 
@@ -595,8 +680,14 @@ const IDEPageContent = () => {
           </div>
         </div>
 
+        {/* TRỤC KÉO THẢ CHO SHAPES LIBRARY PANEL */}
         {isRightPanelOpen && (
-          <div className={`w-64 border-l ${theme.border} flex flex-col shrink-0 overflow-y-auto ${theme.bgMain} pb-10`}>
+          <div className={`w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-10 ${theme.border} border-l`} onMouseDown={() => setIsDraggingRightPanel(true)} />
+        )}
+
+        {/* SHAPES LIBRARY PANEL */}
+        {isRightPanelOpen && (
+          <div style={{ width: rightPanelWidth }} className={`flex flex-col shrink-0 overflow-y-auto ${theme.bgMain} pb-10`}>
             <div className={`flex items-center px-4 py-2 text-xs font-semibold uppercase tracking-wider ${theme.textMuted} border-b ${theme.border}`}><span>Shapes Library</span></div>
             {SHAPE_CATEGORIES.map((category) => {
               const isOpen = openShapeMenus[category];
