@@ -18,10 +18,15 @@ pub struct AuthRequest {
 }
 
 #[derive(Serialize)]
+pub struct UserInfo {
+    id: String,
+    email: String,
+}
+
+#[derive(Serialize)]
 pub struct AuthResponse {
     token: String,
-    user_id: String,
-    email: String,
+    user: UserInfo,
 }
 
 pub async fn register(
@@ -61,7 +66,10 @@ pub async fn register(
         })?;
 
     let token = jwt::issue(&user_id, &state.config.jwt_secret).map_err(AppError::Internal)?;
-    Ok(Json(AuthResponse { token, user_id, email }))
+    Ok(Json(AuthResponse {
+        token,
+        user: UserInfo { id: user_id, email },
+    }))
 }
 
 pub async fn login(
@@ -88,7 +96,10 @@ pub async fn login(
         .map_err(|_| AppError::Unauthorized)?;
 
     let token = jwt::issue(&user_id, &state.config.jwt_secret).map_err(AppError::Internal)?;
-    Ok(Json(AuthResponse { token, user_id, email: stored_email }))
+    Ok(Json(AuthResponse {
+        token,
+        user: UserInfo { id: user_id, email: stored_email },
+    }))
 }
 
 pub async fn me(

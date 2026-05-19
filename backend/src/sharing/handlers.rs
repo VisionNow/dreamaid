@@ -29,6 +29,7 @@ pub struct CreateShareRequest {
 #[derive(Serialize)]
 pub struct ShareLinkResponse {
     pub token: String,
+    pub url: String,
     pub permission: String,
     pub expires_at: Option<String>,
 }
@@ -65,8 +66,10 @@ pub async fn create_share_link(
     .await
     .map_err(|e| AppError::Internal(e.into()))?;
 
+    let url = format!("/api/shared/{token}");
     Ok(Json(ShareLinkResponse {
         token,
+        url,
         permission: permission.to_string(),
         expires_at: body.expires_at,
     }))

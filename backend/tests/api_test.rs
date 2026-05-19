@@ -89,8 +89,8 @@ async fn register_creates_user_and_returns_token() {
     let body = do_register(app, "alice@example.com", "password123").await;
 
     assert!(body["token"].is_string(), "token missing: {body}");
-    assert_eq!(body["email"], "alice@example.com");
-    assert!(body["user_id"].is_string());
+    assert_eq!(body["user"]["email"], "alice@example.com");
+    assert!(body["user"]["id"].is_string());
 }
 
 #[tokio::test]
@@ -336,6 +336,52 @@ async fn diagrams_full_crud() {
         .await
         .unwrap();
     assert_eq!(gone_res.status(), StatusCode::NOT_FOUND);
+}
+
+// ── sharing: response shape matches frontend api.ts ───────────────────────────
+
+#[tokio::test]
+async fn share_link_includes_url_and_token() {
+    let app = test_app().await;
+    let reg = do_register(app.clone(), "grace@example.com", "password123").await;
+    let token = reg["token"].as_str().unwrap().to_string();
+
+    let create_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/diagrams")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {token}"))
+                .body(json_body(json!({"title": "Shared", "content": "A"})))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let created = body_json(create_res.into_body()).await;
+    let id = created["id"].as_str().unwrap().to_string();
+
+    let share_res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/diagrams/{id}/share"))
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {token}"))
+                .body(json_body(json!({"permission": "read"})))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(share_res.status(), StatusCode::OK);
+    let body = body_json(share_res.into_body()).await;
+
+    // Frontend api.ts ShareLinkResponse expects { token, url }
+    assert!(body["token"].is_string(), "share token missing: {body}");
+    assert!(body["url"].is_string(), "share url missing: {body}");
+    let url = body["url"].as_str().unwrap();
+    assert!(url.contains(body["token"].as_str().unwrap()), "url must embed token");
 }
 
 // ── diagrams: ownership ───────────────────────────────────────────────────────
