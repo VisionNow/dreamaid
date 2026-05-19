@@ -35,7 +35,8 @@ import {
   Play, Search, Folder, FileCode, ChevronDown, ChevronRight, Menu,
   MoreHorizontal, Sun, Moon, Type, Circle, User, StickyNote,
   MessageSquare, Box, X, Wand2, PanelLeft, PanelBottom, PanelRight,
-  Hexagon, Triangle, Database, Cloud, FileText, RotateCw, Upload, MoreVertical
+  Hexagon, Triangle, Database, Cloud, FileText, RotateCw, Upload,
+  Minus, Square
 } from "lucide-react";
 
 // --- QUẢN LÝ ẢNH UPLOAD ---
@@ -77,7 +78,9 @@ const shapeDescriptions: Record<string, string> = {
   'merge': 'Merge multiple processes or paths.',
   'extract': 'Extract or split a process.',
   'or': 'Logical OR.',
-  'summingJunction': 'Logical AND / Summing junction.'
+  'summingJunction': 'Logical AND / Summing junction.',
+  'annotationLeft': 'Left bracket annotation.',
+  'annotationRight': 'Right bracket annotation.'
 };
 
 // --- BỘ MÁY VẼ HÌNH HỌC SVG CHUẨN XÁC ---
@@ -85,15 +88,8 @@ const ShapeSvgRenderer = ({ type, fill, stroke, strokeWidth = 2, selected, isLib
   const common = { fill, stroke, strokeWidth, vectorEffect: "non-scaling-stroke", strokeLinejoin: "round" as const };
   const commonNone = { ...common, fill: "none" };
 
-  if (type === 'text') {
-    return (
-      <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
-        {selected && <rect x="0" y="0" width="100" height="100" fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="4" vectorEffect="non-scaling-stroke" />}
-      </svg>
-    );
-  }
-
   let content = <rect x="0" y="0" width="100" height="100" {...common} />; 
+  
   if (type === 'rectangle') content = <rect x={isLibrary ? 5 : 0} y={isLibrary ? 25 : 0} width={isLibrary ? 90 : 100} height={isLibrary ? 50 : 100} {...common} />;
   else if (type === 'square') content = <rect x={isLibrary ? 15 : 0} y={isLibrary ? 15 : 0} width={isLibrary ? 70 : 100} height={isLibrary ? 70 : 100} {...common} />;
   else if (type === 'rounded') content = <rect x={isLibrary ? 5 : 0} y={isLibrary ? 25 : 0} width={isLibrary ? 90 : 100} height={isLibrary ? 50 : 100} rx="10" ry="10" {...common} />;
@@ -126,8 +122,18 @@ const ShapeSvgRenderer = ({ type, fill, stroke, strokeWidth = 2, selected, isLib
   else if (type === 'sort') content = <><polygon points="50,0 100,50 50,100 0,50" {...common} /><line x1="0" y1="50" x2="100" y2="50" {...commonNone} /></>;
   else if (type === 'or') content = <><circle cx="50" cy="50" r="50" {...common}/><line x1="15" y1="15" x2="85" y2="85" {...commonNone}/><line x1="15" y1="85" x2="85" y2="15" {...commonNone}/></>;
   else if (type === 'summingJunction') content = <><circle cx="50" cy="50" r="50" {...common}/><line x1="50" y1="0" x2="50" y2="100" {...commonNone}/><line x1="0" y1="50" x2="100" y2="50" {...commonNone}/></>;
+  else if (type === 'annotationLeft') content = <path d="M 20 0 L 15 0 C 5 0 5 20 5 40 C 5 45 0 50 0 50 C 5 50 5 55 5 60 C 5 80 5 100 15 100 L 20 100" {...commonNone} />;
+  else if (type === 'annotationRight') content = <path d="M 80 0 L 85 0 C 95 0 95 20 95 40 C 95 45 100 50 100 50 C 95 50 95 55 95 60 C 95 80 95 100 85 100 L 80 100" {...commonNone} />;
+  else if (type === 'text' || type === 'image') content = <></>;
 
-  return <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>{content}</svg>;
+  return (
+    <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
+      {content}
+      {['text', 'image', 'annotationLeft', 'annotationRight'].includes(type) && selected && (
+        <rect x="0" y="0" width="100" height="100" fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="4" vectorEffect="non-scaling-stroke" />
+      )}
+    </svg>
+  );
 };
 
 // --- 1. CUSTOM SHAPE NODE ---
@@ -185,8 +191,8 @@ const CustomShapeNode = ({ id, data, selected, style }: any) => {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const isText = shapeType === 'text';
-  const fillColor = isText || shapeType === 'image' ? 'transparent' : '#ffffff';
+  const isTransparent = ['text', 'image', 'annotationLeft', 'annotationRight'].includes(shapeType);
+  const fillColor = isTransparent ? 'transparent' : '#ffffff';
   const strokeColor = selected ? '#3b82f6' : '#1e293b';
   const strokeWidth = selected ? 3 : 2;
 
@@ -198,7 +204,7 @@ const CustomShapeNode = ({ id, data, selected, style }: any) => {
     <div className="relative group w-full h-full" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       {selected && (
         <div 
-          className="absolute -top-10 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border border-blue-500 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-sm z-50 text-blue-600 hover:bg-blue-50"
+          className="nodrag absolute -top-8 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border border-blue-500 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-sm z-50 text-blue-600 hover:bg-blue-50"
           onMouseDown={onRotateMouseDown}
         >
           <RotateCw size={12} strokeWidth={3} />
@@ -206,7 +212,7 @@ const CustomShapeNode = ({ id, data, selected, style }: any) => {
       )}
 
       <div ref={nodeRef} style={{ width: '100%', height: '100%', transform: `rotate(${rotAngle}deg)`, transformOrigin: 'center center' }}>
-        <NodeResizer color="#3b82f6" isVisible={selected} minWidth={isText ? 20 : 50} minHeight={isText ? 20 : 40} handleStyle={{ width: '8px', height: '8px', borderRadius: '2px' }} lineStyle={{ borderWidth: '2px' }} />
+        <NodeResizer color="#3b82f6" isVisible={selected} minWidth={isTransparent ? 20 : 50} minHeight={isTransparent ? 20 : 40} handleStyle={{ width: '8px', height: '8px', borderRadius: '2px' }} lineStyle={{ borderWidth: '2px' }} />
 
         <Handle type="target" position={Position.Top} id="top-t" style={{...handleStyle, top: '-4px'}} />
         <Handle type="source" position={Position.Top} id="top-s" style={{...handleStyle, top: '-4px'}} />
@@ -219,7 +225,7 @@ const CustomShapeNode = ({ id, data, selected, style }: any) => {
         
         <div className="absolute inset-0 z-0 pointer-events-none">
            {shapeType === 'image' && displayUrl && <img src={displayUrl} className="w-full h-full object-contain pointer-events-none p-1" />}
-           {shapeType !== 'image' && <ShapeSvgRenderer type={shapeType} fill={fillColor} stroke={strokeColor} strokeWidth={strokeWidth} selected={selected} />}
+           <ShapeSvgRenderer type={shapeType} fill={fillColor} stroke={strokeColor} strokeWidth={strokeWidth} selected={selected} />
         </div>
 
         <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center p-2 text-[#0f172a] text-xs font-medium text-center ${shapeType === 'actor' ? 'justify-end pb-0' : ''} ${shapeType === 'image' ? 'justify-end -bottom-6 h-auto drop-shadow-md' : ''}`} onDoubleClick={() => setIsEditing(true)}>
@@ -256,20 +262,12 @@ const SmartEdge = ({ id, source, target, style, markerEnd, markerStart, label, d
   const sWidth = sourceNode.width || 120; const sHeight = sourceNode.height || 40;
   const tWidth = targetNode.width || 120; const tHeight = targetNode.height || 40;
 
-  // --- FIX SELF-LOOP (Tự động thích ứng kích thước) ---
   if (source === target) {
     const labelLength = typeof label === 'string' ? label.length : 0;
-    // Bán kính nở ra khi khối phình to
     const radiusX = Math.max(40, sWidth * 0.4) + labelLength * 2; 
     const radiusY = Math.max(50, sHeight * 0.5) + labelLength * 2;
-    
-    // Tọa độ cắm: Bắt đầu từ 3/4 cạnh trên, kết thúc ở 1/4 cạnh phải
-    const startX = sourceNode.position.x + sWidth * 0.75; 
-    const startY = sourceNode.position.y;
-    const endX = sourceNode.position.x + sWidth; 
-    const endY = sourceNode.position.y + sHeight * 0.25;
-    
-    // Đẩy xa Control Point ra
+    const startX = sourceNode.position.x + sWidth * 0.75; const startY = sourceNode.position.y;
+    const endX = sourceNode.position.x + sWidth; const endY = sourceNode.position.y + sHeight * 0.25;
     const c1X = startX + radiusX * 0.8; const c1Y = startY - radiusY;
     const c2X = endX + radiusX; const c2Y = endY - radiusY * 0.8;
 
@@ -495,29 +493,28 @@ const IDEPageContent = () => {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState<boolean>(true);
   const [isTabOpen, setIsTabOpen] = useState<boolean>(true);
   const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false); 
+  const [isMiniMapOpen, setIsMiniMapOpen] = useState<boolean>(true);
+  const [isMiniMapHovered, setIsMiniMapHovered] = useState<boolean>(false);
   const [parseError, setParseError] = useState<{line: number, message: string, lineText: string} | null>(null);
 
-  const [openShapeMenus, setOpenShapeMenus] = useState<Record<string, boolean>>({ "Custom": true, "General": false, "Flowchart": true });
+  const [openShapeMenus, setOpenShapeMenus] = useState<Record<string, boolean>>({ "Custom": true, "General": true, "Flowchart": true });
   
   const [customShapes, setCustomShapes] = useState<any[]>([]);
 
   const [explorerWidth, setExplorerWidth] = useState<number>(256);
   const [editorWidth, setEditorWidth] = useState<number>(500);
-  const [rightPanelWidth, setRightPanelWidth] = useState<number>(256);
+  const [rightPanelWidth, setRightPanelWidth] = useState<number>(280);
   
   const [isDraggingExplorer, setIsDraggingExplorer] = useState(false);
   const [isDraggingEditor, setIsDraggingEditor] = useState(false);
   const [isDraggingRightPanel, setIsDraggingRightPanel] = useState(false);
 
   const [contextMenu, setContextMenu] = useState<{ id: string; top: number; left: number; type: 'node' | 'edge' } | null>(null);
-  
-  // Custom Shape Action Menu State
   const [activeCustomShape, setActiveCustomShape] = useState<string | null>(null);
-
   const [hoveredShape, setHoveredShape] = useState<{ x: number, y: number, item: any } | null>(null);
   const hoverTimeout = useRef<any>(null);
 
-  const [code, setCode] = useState<string>("graph TD;\n    KH[\"Khách hàng\"] %% shape:actor x:100 y:100 w:80 h:80 rot:0\n    BA[\"Business Analyst\"] %% shape:rectangle x:300 y:250 w:120 h:40 rot:0\n\n    KH -->|Gửi yêu cầu| BA;\n");
+  const [code, setCode] = useState<string>("graph TD;\n    KH[\"Customer\"] %% shape:actor x:100 y:100 w:80 h:80 rot:0\n    BA[\"Business Analyst\"] %% shape:rectangle x:300 y:250 w:120 h:40 rot:0\n\n    KH -->|Send Request| BA;\n");
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
@@ -528,7 +525,6 @@ const IDEPageContent = () => {
     if (monacoRef.current) monacoRef.current.monaco.editor.setModelMarkers(monacoRef.current.editor.getModel(), "mermaid", []);
   }, []);
 
-  // LOAD TỪ LOCALSTORAGE
   useEffect(() => {
     try {
       const savedShapes = JSON.parse(localStorage.getItem('custom_shapes_list') || '[]');
@@ -592,7 +588,6 @@ const IDEPageContent = () => {
     setActiveCustomShape(null);
   };
 
-
   useEffect(() => {
     const nodeHandler = (e: any) => { updateCodeFromFlow(e.detail.nodes, edges); };
     const edgeHandler = (e: any) => { updateCodeFromFlow(nodes, e.detail.edges); };
@@ -637,6 +632,7 @@ const IDEPageContent = () => {
   const onNodesChange = useCallback((changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
   const onNodeDragStop = useCallback(() => { updateCodeFromFlow(nodes, edges); }, [nodes, edges, updateCodeFromFlow]);
+  const onNodeResizeStop = useCallback(() => { updateCodeFromFlow(nodes, edges); }, [nodes, edges, updateCodeFromFlow]);
   
   const onConnect = useCallback((params: Connection) => {
     const rawEdge = { ...params, id: `e${params.source}-${params.target}-${Date.now()}`, type: 'smart', markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 } } as Edge;
@@ -653,7 +649,10 @@ const IDEPageContent = () => {
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent) => {
     if (coordsRef.current && reactFlowWrapper.current) {
       const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      coordsRef.current.innerText = `X: ${Math.round(flowPos.x)} | Y: ${Math.round(flowPos.y)}`;
+      const xSpan = coordsRef.current.querySelector('#coord-x');
+      const ySpan = coordsRef.current.querySelector('#coord-y');
+      if(xSpan) xSpan.innerHTML = `X: ${Math.round(flowPos.x)}`;
+      if(ySpan) ySpan.innerHTML = `Y: ${Math.round(flowPos.y)}`;
     }
   }, [screenToFlowPosition]);
 
@@ -673,10 +672,13 @@ const IDEPageContent = () => {
     if (['square', 'circle', 'hexagon', 'cube', 'actor', 'image', 'or', 'summingJunction'].includes(type)) { w = 80; h = 80; }
     else if (type === 'ellipse' || type === 'cloud') { w = 120; h = 60; }
     else if (type === 'text') { w = 50; h = 30; }
+    else if (type === 'annotationLeft' || type === 'annotationRight') { w = 100; h = 50; }
+
+    const initialLabel = type === 'text' ? 'Text' : '';
 
     const newNode: Node = { 
       id: newNodeId, type: 'customShape', position, 
-      data: { label: `${label}`, shapeType: type, imageUrl, rotation: 0 }, 
+      data: { label: initialLabel, shapeType: type, imageUrl, rotation: 0 }, 
       style: { width: w, height: h } 
     };
     const newNodes = nodes.concat(newNode);
@@ -707,7 +709,6 @@ const IDEPageContent = () => {
     event.preventDefault(); setContextMenu({ id: edge.id, top: event.clientY, left: event.clientX, type: 'edge' });
   }, []);
 
-  // Đóng Menu Custom Shape khi click ra ngoài
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);
     setActiveCustomShape(null);
@@ -752,7 +753,7 @@ const IDEPageContent = () => {
   
   const handleMouseMove = useCallback((e: MouseEvent) => { 
     if (isDraggingExplorer) setExplorerWidth(Math.max(150, Math.min(e.clientX, 500))); 
-    else if (isDraggingRightPanel) setRightPanelWidth(Math.max(150, Math.min(window.innerWidth - e.clientX, 500))); 
+    else if (isDraggingRightPanel) setRightPanelWidth(Math.max(180, Math.min(window.innerWidth - e.clientX, 600))); 
     else if (isDraggingEditor) { const offset = isSidebarOpen ? explorerWidth : 0; const rightPanelOffset = isRightPanelOpen ? rightPanelWidth : 0; setEditorWidth(Math.max(200, Math.min(e.clientX - offset, window.innerWidth - 300 - rightPanelOffset))); } 
   }, [isDraggingExplorer, isDraggingEditor, isDraggingRightPanel, isSidebarOpen, explorerWidth, isRightPanelOpen, rightPanelWidth]);
   
@@ -787,11 +788,11 @@ const IDEPageContent = () => {
           
           <div 
              onClick={() => fileInputRef.current?.click()}
-             className={`aspect-square rounded border border-dashed ${isDarkMode ? 'border-[#4b4b4b] hover:border-blue-500 text-slate-400' : 'border-slate-300 hover:border-blue-500 text-slate-500'} cursor-pointer flex flex-col items-center justify-center p-2 transition-colors`}
+             className={`w-14 h-14 rounded border border-dashed ${isDarkMode ? 'border-[#4b4b4b] hover:border-blue-500 text-slate-400' : 'border-slate-300 hover:border-blue-500 text-slate-500'} cursor-pointer flex flex-col items-center justify-center transition-colors`}
              title="Upload Custom Image Shape"
           >
              <Upload size={16} className="mb-1" />
-             <span className="text-[10px] text-center leading-tight">Insert<br/>Shape</span>
+             <span className="text-[9px] text-center leading-tight">Insert<br/>Shape</span>
           </div>
 
           {customShapes.map(item => {
@@ -799,7 +800,7 @@ const IDEPageContent = () => {
             const customItem = { type: 'image', label: item.label, icon: <img src={displayUrl} style={{width: 24}}/>, url: item.url };
             
             return (
-              <div key={item.url} className="relative aspect-square">
+              <div key={item.url} className="relative w-14 h-14">
                  <div 
                     onClick={(e) => { e.stopPropagation(); setActiveCustomShape(activeCustomShape === item.url ? null : item.url); }} 
                     draggable 
@@ -815,7 +816,6 @@ const IDEPageContent = () => {
                     <div className={`w-full text-[9px] text-center truncate ${theme.textMuted}`}>{item.label}</div>
                  </div>
 
-                 {/* BOX EDIT/DELETE MỚI */}
                  {activeCustomShape === item.url && (
                     <div className="absolute top-full left-0 z-[100] mt-1 bg-white border border-slate-200 shadow-lg rounded text-xs flex flex-col w-24 overflow-hidden">
                        <button className="px-3 py-2 text-left hover:bg-slate-100 text-slate-700" onClick={(e) => { e.stopPropagation(); onShapeClick('image', item.label, item.url); setActiveCustomShape(null); }}>Insert</button>
@@ -858,7 +858,7 @@ const IDEPageContent = () => {
             <div 
               key={item.label} onClick={() => onShapeClick(item.type, item.label)} draggable onDragStart={(event) => onDragStart(event, item.type, item.label)} 
               onMouseEnter={(e) => handleShapeMouseEnter(e, item)} onMouseLeave={handleShapeMouseLeave}
-              className={`aspect-square rounded border ${isDarkMode ? 'border-[#3c3c3c] bg-[#1e1e1e] hover:bg-[#2a2d2e]' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} hover:border-blue-500 cursor-pointer flex items-center justify-center p-2`} title={item.label}
+              className={`w-14 h-14 rounded border ${isDarkMode ? 'border-[#3c3c3c] bg-[#1e1e1e] hover:bg-[#2a2d2e]' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} hover:border-blue-500 cursor-pointer flex items-center justify-center p-2`} title={item.label}
             >
               {item.type === 'text' ? item.icon : <div className="w-full h-full pointer-events-none">{item.icon}</div>}
             </div>
@@ -871,8 +871,8 @@ const IDEPageContent = () => {
       return (
         <>
           {[ 
-            { type: 'process', label: 'Process', icon: <ShapeSvgRenderer type="rectangle" fill={libFill} stroke={libStroke} isLibrary={true} /> }, 
-            { type: 'rounded', label: 'Alternate Process', icon: <ShapeSvgRenderer type="rounded" fill={libFill} stroke={libStroke} isLibrary={true} /> }, 
+            { type: 'annotationLeft', label: 'Annotation 1', icon: <ShapeSvgRenderer type="annotationLeft" fill={libFill} stroke={libStroke} isLibrary={true} /> }, 
+            { type: 'annotationRight', label: 'Annotation 2', icon: <ShapeSvgRenderer type="annotationRight" fill={libFill} stroke={libStroke} isLibrary={true} /> }, 
             { type: 'diamond', label: 'Decision', icon: <ShapeSvgRenderer type="diamond" fill={libFill} stroke={libStroke} isLibrary={true} /> }, 
             { type: 'parallelogram', label: 'Data', icon: <ShapeSvgRenderer type="parallelogram" fill={libFill} stroke={libStroke} isLibrary={true} /> }, 
             { type: 'process', label: 'Predefined Process', icon: <ShapeSvgRenderer type="process" fill={libFill} stroke={libStroke} isLibrary={true} /> }, 
@@ -899,7 +899,7 @@ const IDEPageContent = () => {
             <div 
               key={item.label} onClick={() => onShapeClick(item.type, item.label)} draggable onDragStart={(event) => onDragStart(event, item.type, item.label)} 
               onMouseEnter={(e) => handleShapeMouseEnter(e, item)} onMouseLeave={handleShapeMouseLeave}
-              className={`aspect-square rounded border ${isDarkMode ? 'border-[#3c3c3c] bg-[#1e1e1e] hover:bg-[#2a2d2e]' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} hover:border-blue-500 cursor-pointer flex items-center justify-center p-2`} title={item.label}
+              className={`w-14 h-14 rounded border ${isDarkMode ? 'border-[#3c3c3c] bg-[#1e1e1e] hover:bg-[#2a2d2e]' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} hover:border-blue-500 cursor-pointer flex items-center justify-center p-2`} title={item.label}
             >
               <div className="w-full h-full pointer-events-none">{item.icon}</div>
             </div>
@@ -1022,11 +1022,11 @@ const IDEPageContent = () => {
               </button>
             </div>
             
-            <div ref={coordsRef} className={`absolute top-4 right-4 z-10 px-3 py-1 text-[11px] font-mono rounded-md shadow border ${theme.border} ${theme.bgMain} ${theme.text}`}>
-              X: 0 | Y: 0
+            <div ref={coordsRef} className={`absolute top-4 right-4 z-10 flex flex-wrap justify-end gap-x-2 max-w-[120px] px-3 py-1 text-[11px] font-mono rounded-md shadow border ${theme.border} ${theme.bgMain} ${theme.text}`}>
+              <span id="coord-x">X: 0</span>
+              <span id="coord-y">Y: 0</span>
             </div>
 
-            {/* ĐÃ FIX: Phần trăm thu phóng quay lại top-left */}
             <div className={`absolute top-4 left-4 z-10 px-2 py-1 text-xs font-medium rounded-md shadow border ${theme.border} ${theme.bgMain} ${theme.text}`}>{(zoomLevel * 100).toFixed(0)}%</div>
             
             <div className="flex-1 w-full h-full" onPointerMove={handleCanvasPointerMove} onMouseUp={handleCanvasMouseUp}>
@@ -1042,7 +1042,27 @@ const IDEPageContent = () => {
               >
                 <Background color="#cbd5e1" gap={16} />
                 <Controls position="bottom-left" className="bg-white border-slate-200 fill-slate-600 mb-4 ml-4 shadow-sm rounded-md" />
-                <MiniMap position="bottom-right" nodeColor="#cbd5e1" maskColor="rgba(248, 250, 252, 0.7)" className="shadow-sm rounded-md border border-slate-200" nodeBorderRadius={8} style={{ zIndex: 100 }} />
+                
+                <div 
+                   className="absolute bottom-4 right-4 z-[101] flex flex-col items-end"
+                   onMouseEnter={() => setIsMiniMapHovered(true)} onMouseLeave={() => setIsMiniMapHovered(false)}
+                >
+                   {isMiniMapOpen ? (
+                      <div className="relative rounded-md shadow border border-slate-200 overflow-hidden bg-white">
+                         <MiniMap style={{ position: 'relative', bottom: 'auto', right: 'auto', margin: 0 }} nodeColor="#cbd5e1" maskColor="rgba(248, 250, 252, 0.7)" nodeBorderRadius={8} />
+                         {isMiniMapHovered && (
+                            <button onClick={() => setIsMiniMapOpen(false)} className="absolute top-1 right-1 p-1 bg-white/90 hover:bg-slate-100 text-slate-600 hover:text-blue-600 rounded shadow-sm z-50">
+                               <Minus size={12} strokeWidth={3} />
+                            </button>
+                         )}
+                      </div>
+                   ) : (
+                      <button onClick={() => setIsMiniMapOpen(true)} className={`p-2 rounded-md shadow border ${theme.border} ${theme.bgMain} text-slate-600 hover:text-blue-600 cursor-pointer`}>
+                         <Square size={16} strokeWidth={2} />
+                      </button>
+                   )}
+                </div>
+
               </ReactFlow>
             </div>
           </div>
@@ -1062,7 +1082,7 @@ const IDEPageContent = () => {
                   <div onClick={() => toggleShapeMenu(category)} className={`flex items-center gap-2 px-2 py-2 cursor-pointer ${theme.itemHover} border-b ${theme.border} select-none`}>
                     {isOpen ? <ChevronDown size={16} className={theme.textMuted} /> : <ChevronRight size={16} className={theme.textMuted} />} <span className="text-[13px] font-semibold">{category}</span>
                   </div>
-                  {isOpen && <div className={`grid grid-cols-4 gap-2 p-3 border-b ${theme.border}`}>{renderShapeItems(category)}</div>}
+                  {isOpen && <div className={`flex flex-wrap content-start gap-2 p-3 border-b ${theme.border}`}>{renderShapeItems(category)}</div>}
                 </div>
               );
             })}
