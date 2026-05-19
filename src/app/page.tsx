@@ -36,7 +36,7 @@ import {
   MoreHorizontal, Sun, Moon, Type, Circle, User, StickyNote,
   MessageSquare, Box, X, Wand2, PanelLeft, PanelBottom, PanelRight,
   Hexagon, Triangle, Database, Cloud, FileText, RotateCw, Upload,
-  Minus, Square
+  Minus, Square, PenTool, Eraser
 } from "lucide-react";
 
 // --- QUẢN LÝ ẢNH UPLOAD ---
@@ -136,7 +136,77 @@ const ShapeSvgRenderer = ({ type, fill, stroke, strokeWidth = 2, selected, isLib
   );
 };
 
-// --- 1. CUSTOM SHAPE NODE ---
+// --- 1.1 DRAWING NODE (Dành cho Art Mode) ---
+const DrawNode = ({ data, selected }: any) => {
+  const { points, color, width, penStyle, isTemp, origW, origH, rotation = 0 } = data;
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const { setNodes } = useReactFlow();
+  const [rotAngle, setRotAngle] = useState(rotation);
+
+  useEffect(() => { setRotAngle(rotation); }, [rotation]);
+
+  const onRotateMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation(); e.preventDefault();
+    const rect = nodeRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - centerX;
+      const dy = moveEvent.clientY - centerY;
+      let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+      angle = (angle + 360) % 360;
+      angle = Math.round(angle / 15) * 15;
+      setRotAngle(angle);
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      // Cập nhật state nội bộ canvas, KHÔNG gửi cho Mermaid
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const d = points && points.length > 0 ? `M ${points[0].x} ${points[0].y} ` + points.map((p:any) => `L ${p.x} ${p.y}`).join(' ') : '';
+  
+  const strokeDash = penStyle === 'dashed' ? '8 8' : penStyle === 'dotted' ? '2 4' : 'none';
+  const linecap = 'round';
+  const opacity = penStyle === 'highlighter' ? 0.4 : 1;
+  const actualWidth = penStyle === 'highlighter' ? width * 3 : width;
+
+  if (isTemp) {
+    return (
+      <div className="w-full h-full pointer-events-none">
+         <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
+            <path d={d} fill="none" stroke={color} strokeWidth={actualWidth} strokeDasharray={strokeDash} strokeLinecap={linecap} strokeLinejoin="round" opacity={opacity} />
+         </svg>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative group w-full h-full">
+      {selected && (
+        <div className="nodrag absolute -top-8 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border border-blue-500 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-sm z-50 text-blue-600 hover:bg-blue-50" onMouseDown={onRotateMouseDown}>
+          <RotateCw size={12} strokeWidth={3} />
+        </div>
+      )}
+      <div ref={nodeRef} style={{ width: '100%', height: '100%', transform: `rotate(${rotAngle}deg)`, transformOrigin: 'center center' }}>
+        <NodeResizer color="#3b82f6" isVisible={selected} minWidth={10} minHeight={10} handleStyle={{ width: '8px', height: '8px', borderRadius: '2px' }} lineStyle={{ borderWidth: '2px' }} />
+        <svg width="100%" height="100%" viewBox={`0 0 ${origW} ${origH}`} preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+          {selected && <rect x="0" y="0" width={origW} height={origH} fill="none" stroke="#3b82f6" strokeWidth="1" strokeDasharray="4" vectorEffect="non-scaling-stroke" />}
+          <path d={d} fill="none" stroke={color} strokeWidth={actualWidth} strokeDasharray={strokeDash} strokeLinecap={linecap} strokeLinejoin="round" opacity={opacity} vectorEffect="non-scaling-stroke" />
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+
+// --- 1.2 CUSTOM SHAPE NODE ---
 const CustomShapeNode = ({ id, data, selected, style }: any) => {
   const { shapeType, label, imageUrl, rotation = 0 } = data;
   const [isHovered, setIsHovered] = useState(false);
@@ -338,7 +408,7 @@ const SmartEdge = ({ id, source, target, style, markerEnd, markerStart, label, d
   );
 };
 
-const nodeTypes = { customShape: CustomShapeNode };
+const nodeTypes = { customShape: CustomShapeNode, drawNode: DrawNode };
 const edgeTypes = { smart: SmartEdge };
 
 // --- 3. LOGIC GỘP MŨI TÊN ---
@@ -446,6 +516,9 @@ const generateMermaidFromFlow = (nodes: Node[], edges: Edge[]): string => {
   if (nodes.length === 0) return "";
   let mermaidCode = "graph TD;\n";
   nodes.forEach(node => { 
+    // BỎ QUA DRAWNODE KHI XUẤT RA MERMAID CODE
+    if (node.type === 'drawNode') return;
+
     const label = node.data.label || node.id;
     const shape = node.data.shapeType || 'rectangle';
     const rot = node.data.rotation || 0;
@@ -468,10 +541,11 @@ const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
 const autoLayoutElements = (nodes: Node[], edges: Edge[]) => {
   dagreGraph.setGraph({ rankdir: 'TB', ranksep: 80, nodesep: 100 });
-  nodes.forEach((node) => dagreGraph.setNode(node.id, { width: 150, height: 50 }));
+  nodes.forEach((node) => { if(node.type !== 'drawNode') dagreGraph.setNode(node.id, { width: 150, height: 50 }) });
   edges.forEach((edge) => dagreGraph.setEdge(edge.source, edge.target));
   dagre.layout(dagreGraph);
   return nodes.map((node) => {
+    if(node.type === 'drawNode') return node;
     const nodeWithPosition = dagreGraph.node(node.id);
     return { ...node, position: { x: nodeWithPosition.x - 75, y: nodeWithPosition.y - 25 } };
   });
@@ -497,27 +571,35 @@ const IDEPageContent = () => {
   const [isMiniMapHovered, setIsMiniMapHovered] = useState<boolean>(false);
   const [parseError, setParseError] = useState<{line: number, message: string, lineText: string} | null>(null);
 
-  const [openShapeMenus, setOpenShapeMenus] = useState<Record<string, boolean>>({ "Custom": true, "General": true, "Flowchart": true });
-  
+  const [openShapeMenus, setOpenShapeMenus] = useState<Record<string, boolean>>({ "Custom": true, "General": false, "Flowchart": true });
   const [customShapes, setCustomShapes] = useState<any[]>([]);
 
+  // States Layout Resize
   const [explorerWidth, setExplorerWidth] = useState<number>(256);
   const [editorWidth, setEditorWidth] = useState<number>(500);
   const [rightPanelWidth, setRightPanelWidth] = useState<number>(280);
-  
   const [isDraggingExplorer, setIsDraggingExplorer] = useState(false);
   const [isDraggingEditor, setIsDraggingEditor] = useState(false);
   const [isDraggingRightPanel, setIsDraggingRightPanel] = useState(false);
 
+  // Context Menu & Tooltip
   const [contextMenu, setContextMenu] = useState<{ id: string; top: number; left: number; type: 'node' | 'edge' } | null>(null);
   const [activeCustomShape, setActiveCustomShape] = useState<string | null>(null);
   const [hoveredShape, setHoveredShape] = useState<{ x: number, y: number, item: any } | null>(null);
   const hoverTimeout = useRef<any>(null);
 
+  // Flow State
   const [code, setCode] = useState<string>("graph TD;\n    KH[\"Customer\"] %% shape:actor x:100 y:100 w:80 h:80 rot:0\n    BA[\"Business Analyst\"] %% shape:rectangle x:300 y:250 w:120 h:40 rot:0\n\n    KH -->|Send Request| BA;\n");
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+
+  // --- ART MODE (DRAWING) STATE ---
+  const [isDrawingMode, setIsDrawingMode] = useState<boolean>(false);
+  const [drawColor, setDrawColor] = useState<string>("#3b82f6");
+  const [drawWidth, setDrawWidth] = useState<number>(3);
+  const [drawStyle, setDrawStyle] = useState<string>('solid'); // solid, dashed, highlighter
+  const [currentDrawPath, setCurrentDrawPath] = useState<{x: number, y: number}[] | null>(null);
 
   const updateCodeFromFlow = useCallback((currentNodes: Node[], currentEdges: Edge[]) => {
     setCode(generateMermaidFromFlow(currentNodes, currentEdges));
@@ -530,9 +612,7 @@ const IDEPageContent = () => {
       const savedShapes = JSON.parse(localStorage.getItem('custom_shapes_list') || '[]');
       savedShapes.forEach((s: any) => {
         const base64 = localStorage.getItem(s.url);
-        if (base64) {
-          globalImageRegistry[s.url] = base64;
-        }
+        if (base64) { globalImageRegistry[s.url] = base64; }
       });
       setCustomShapes(savedShapes);
     } catch (e) {}
@@ -588,6 +668,7 @@ const IDEPageContent = () => {
     setActiveCustomShape(null);
   };
 
+
   useEffect(() => {
     const nodeHandler = (e: any) => { updateCodeFromFlow(e.detail.nodes, edges); };
     const edgeHandler = (e: any) => { updateCodeFromFlow(nodes, e.detail.edges); };
@@ -602,7 +683,11 @@ const IDEPageContent = () => {
   const handleSyncCodeToDiagram = useCallback(() => {
     try {
       const parsedData = parseMermaid(code);
-      setNodes([...parsedData.nodes]);
+      // GIỮ LẠI CÁC NET VẼ KHI SYNC
+      setNodes(currentNodes => {
+        const drawings = currentNodes.filter(n => n.type === 'drawNode');
+        return [...parsedData.nodes, ...drawings];
+      });
       setEdges([...parsedData.edges]);
       
       setParseError(null);
@@ -655,6 +740,48 @@ const IDEPageContent = () => {
       if(ySpan) ySpan.innerHTML = `Y: ${Math.round(flowPos.y)}`;
     }
   }, [screenToFlowPosition]);
+
+  // --- ART MODE DRAWING EVENTS ---
+  const onPaneMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!isDrawingMode) return;
+    const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    setCurrentDrawPath([pos]);
+  }, [isDrawingMode, screenToFlowPosition]);
+
+  const onPaneMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDrawingMode || !currentDrawPath) return;
+    const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    setCurrentDrawPath((prev) => prev ? [...prev, pos] : [pos]);
+  }, [isDrawingMode, currentDrawPath, screenToFlowPosition]);
+
+  const onPaneMouseUp = useCallback(() => {
+    if (!isDrawingMode || !currentDrawPath || currentDrawPath.length < 2) {
+      setCurrentDrawPath(null);
+      return;
+    }
+
+    const minX = Math.min(...currentDrawPath.map(p => p.x));
+    const maxX = Math.max(...currentDrawPath.map(p => p.x));
+    const minY = Math.min(...currentDrawPath.map(p => p.y));
+    const maxY = Math.max(...currentDrawPath.map(p => p.y));
+    
+    const w = Math.max(maxX - minX, 10);
+    const h = Math.max(maxY - minY, 10);
+    
+    const normalizedPath = currentDrawPath.map(p => ({ x: p.x - minX, y: p.y - minY }));
+
+    const newNode: Node = {
+      id: `draw_${Date.now()}`,
+      type: 'drawNode',
+      position: { x: minX, y: minY },
+      style: { width: w, height: h },
+      data: { points: normalizedPath, color: drawColor, width: drawWidth, penStyle: drawStyle, origW: w, origH: h, rotation: 0 }
+    };
+
+    setNodes(nds => [...nds, newNode]);
+    setCurrentDrawPath(null);
+  }, [isDrawingMode, currentDrawPath, drawColor, drawWidth, drawStyle, setNodes]);
+
 
   const onDragStart = (event: React.DragEvent, shapeType: string, defaultLabel: string, imageUrl?: string) => {
     event.dataTransfer.setData("application/reactflow-type", shapeType);
@@ -918,7 +1045,6 @@ const IDEPageContent = () => {
   return (
     <div className={`flex flex-col h-screen w-full ${theme.bgMain} ${theme.text} font-sans overflow-hidden transition-colors duration-200`} onClick={closeContextMenu}>
       
-      {/* SHAPE TOOLTIP PORTAL */}
       {hoveredShape && (
         <div 
           className={`fixed z-[9999] text-xs rounded-md shadow-2xl p-3 w-48 pointer-events-none transform -translate-x-full -translate-y-1/2 transition-opacity ${isDarkMode ? 'bg-[#252526] text-white border border-[#4b4b4b]' : 'bg-white text-slate-800 border border-slate-300'}`}
@@ -935,7 +1061,6 @@ const IDEPageContent = () => {
         </div>
       )}
 
-      {/* CONTEXT MENU */}
       {contextMenu && (
         <div style={{ top: contextMenu.top, left: contextMenu.left }} className="fixed z-[100] bg-white border border-slate-200 shadow-xl rounded-md py-1 w-36 text-sm">
           <button onClick={handleEditItem} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 transition">Edit text</button>
@@ -1020,7 +1145,36 @@ const IDEPageContent = () => {
               <button onClick={handleAutoLayout} className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-full transition" title="Auto Layout Diagram">
                 <Wand2 size={14} /> <span className="hidden xl:inline">Auto Layout</span>
               </button>
+              
+              {/* ART MODE TOGGLE */}
+              <div className="w-px h-5 bg-slate-300 mx-1"></div>
+              <button onClick={() => setIsDrawingMode(!isDrawingMode)} className={`flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-full transition ${isDrawingMode ? 'bg-purple-100 text-purple-700' : 'text-slate-700 hover:text-blue-600 hover:bg-blue-50'}`} title="Art Mode (Freehand Drawing)">
+                {isDrawingMode ? <Eraser size={14} /> : <PenTool size={14} />} <span className="hidden xl:inline">{isDrawingMode ? 'Exit Art Mode' : 'Art Mode'}</span>
+              </button>
             </div>
+
+            {/* ART MODE OPTIONS PANEL */}
+            {isDrawingMode && (
+              <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 bg-white rounded-full shadow border border-slate-200">
+                 <div className="flex gap-1">
+                   {['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#0f172a', '#ffffff'].map(color => (
+                     <button key={color} onClick={() => setDrawColor(color)} className={`w-5 h-5 rounded-full border border-slate-200 transition-transform ${drawColor === color ? 'scale-125 ring-2 ring-blue-300' : 'hover:scale-110'}`} style={{backgroundColor: color}} />
+                   ))}
+                 </div>
+                 <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                 <select value={drawWidth} onChange={(e) => setDrawWidth(Number(e.target.value))} className="text-xs bg-slate-50 border border-slate-200 rounded px-1 py-0.5 outline-none">
+                   <option value={1}>1px</option>
+                   <option value={3}>3px</option>
+                   <option value={5}>5px</option>
+                   <option value={10}>10px</option>
+                 </select>
+                 <select value={drawStyle} onChange={(e) => setDrawStyle(e.target.value)} className="text-xs bg-slate-50 border border-slate-200 rounded px-1 py-0.5 outline-none">
+                   <option value="solid">Pen</option>
+                   <option value="dashed">Dashed</option>
+                   <option value="highlighter">Highlighter</option>
+                 </select>
+              </div>
+            )}
             
             <div ref={coordsRef} className={`absolute top-4 right-4 z-10 flex flex-wrap justify-end gap-x-2 max-w-[120px] px-3 py-1 text-[11px] font-mono rounded-md shadow border ${theme.border} ${theme.bgMain} ${theme.text}`}>
               <span id="coord-x">X: 0</span>
@@ -1029,7 +1183,7 @@ const IDEPageContent = () => {
 
             <div className={`absolute top-4 left-4 z-10 px-2 py-1 text-xs font-medium rounded-md shadow border ${theme.border} ${theme.bgMain} ${theme.text}`}>{(zoomLevel * 100).toFixed(0)}%</div>
             
-            <div className="flex-1 w-full h-full" onPointerMove={handleCanvasPointerMove} onMouseUp={handleCanvasMouseUp}>
+            <div className="flex-1 w-full h-full" onPointerMove={handleCanvasPointerMove}>
               <ReactFlow 
                 nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} 
@@ -1037,12 +1191,38 @@ const IDEPageContent = () => {
                 onConnect={onConnect} onMove={handleMove} 
                 onDrop={onDrop} onDragOver={onDragOver} onNodeContextMenu={onNodeContextMenu} 
                 onEdgeContextMenu={onEdgeContextMenu} onPaneClick={closeContextMenu}
+                
+                // ART MODE MOUSE EVENTS
+                onMouseDown={onPaneMouseDown}
+                onMouseMove={onPaneMouseMove}
+                onMouseUp={onPaneMouseUp}
+                
+                // KHOÁ KÉO THẢ KHI ĐANG VẼ
+                nodesDraggable={!isDrawingMode}
+                nodesConnectable={!isDrawingMode}
+                elementsSelectable={!isDrawingMode}
+                panOnDrag={!isDrawingMode}
+
                 panActivationKeyCode={null} 
                 fitView
               >
                 <Background color="#cbd5e1" gap={16} />
                 <Controls position="bottom-left" className="bg-white border-slate-200 fill-slate-600 mb-4 ml-4 shadow-sm rounded-md" />
                 
+                {/* HIỂN THỊ NÉT VẼ TẠM THỜI TRỰC TIẾP TRONG FLOW ĐỂ CHUẨN ZOOM/PAN */}
+                {currentDrawPath && currentDrawPath.length > 0 && (
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-[100]" style={{ overflow: 'visible' }}>
+                    <path 
+                       d={`M ${currentDrawPath[0].x} ${currentDrawPath[0].y} ` + currentDrawPath.map(p => `L ${p.x} ${p.y}`).join(' ')} 
+                       fill="none" stroke={drawColor} 
+                       strokeWidth={drawStyle === 'highlighter' ? drawWidth * 3 : drawWidth} 
+                       strokeDasharray={drawStyle === 'dashed' ? '8 8' : 'none'} 
+                       strokeLinecap="round" strokeLinejoin="round" 
+                       opacity={drawStyle === 'highlighter' ? 0.4 : 1} 
+                    />
+                  </svg>
+                )}
+
                 <div 
                    className="absolute bottom-4 right-4 z-[101] flex flex-col items-end"
                    onMouseEnter={() => setIsMiniMapHovered(true)} onMouseLeave={() => setIsMiniMapHovered(false)}
