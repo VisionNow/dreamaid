@@ -4,7 +4,7 @@
 
 Welcome to **Dream Maid**, a cutting-edge web-based Integrated Development Environment designed specifically for Business Analysts, Software Architects, and Systems Engineers. 
 
-We asked ourselves a simple question: *If Mermaid.js can magically generate diagrams from code, what if we could edit the diagram visually and instantly get the code back?* Beauty Maid is the answer: A true **Two-Way Synchronization** engine between Markdown (Mermaid syntax) and a highly interactive, Draw.io-level visual canvas.
+We asked ourselves a simple question: *If [Mermaid.js](https://github.com/mermaid-js/mermaid.git) can magically generate diagrams from code, what if we could edit the diagram visually and instantly get the code back?* Beauty Maid is the answer: A true **Two-Way Synchronization** engine between Markdown (Mermaid syntax) and a highly interactive, Draw.io-level visual canvas.
 
 ## ✨ Core Features
 
