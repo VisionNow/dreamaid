@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎨 Beauty Maid: The Ultimate Diagramming IDE Online
 
-## Getting Started
+Welcome to **Beauty Maid**, a cutting-edge web-based Integrated Development Environment designed specifically for Business Analysts, Software Architects, and Systems Engineers. 
 
-First, run the development server:
+We asked ourselves a simple question: *If Mermaid.js can magically generate diagrams from code, what if we could edit the diagram visually and instantly get the code back?* Beauty Maid is the answer: A true **Two-Way Synchronization** engine between Markdown (Mermaid syntax) and a highly interactive, Draw.io-level visual canvas.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## ✨ Core Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+* **🔄 Two-Way Live Sync**: Write Mermaid code to see the diagram. Drag, drop, connect, and rename shapes on the canvas to instantly regenerate the Mermaid code. 
+* **📐 Infinite Drag-and-Drop Canvas**: Powered by React Flow. Featuring smart guides, snapping, and a collapsible MiniMap.
+* **🧠 Smart Auto-Routing Edges**: 
+    * Say goodbye to "spiderwebs"! Our custom edge routing dynamically attaches to the nearest node boundary (Top/Bottom/Left/Right).
+    * **Self-Loops**: Beautiful cubic-bezier loops that dynamically resize with your text.
+    * **Bi-directional Consolidation**: Drawing an arrow `A -> B` and another `B -> A`? We automatically turn them into two gorgeous, perfectly symmetrical elliptical curves (or consolidate them into a double-headed arrow `<-->` if the text is identical).
+* **🏛️ Extensive Shape Library**: 30+ meticulously crafted SVG shapes covering General Flowcharts, System Engineering, Cloud architectures, and Annotations.
+* **🖼️ Custom Image Upload**: Upload any SVG/PNG/JPG from your computer. The engine stores the base64 securely in LocalStorage and injects a clean ID into the Mermaid code to keep your source files tidy.
+* **🖌️ Art Mode (Freehand Drawing)**: Sometimes you just need to draw a circle around a component to make a point. Toggle "Art Mode" to sketch directly on the canvas using pencils, dashed pens, or highlighters. These drawings are treated as native SVG nodes but are deliberately *ignored* by the Mermaid parser, allowing free-form annotations over strict architectural diagrams.
+* **🚨 Strict Syntax Parser & Terminal**: Make a typo in your Mermaid code? Our custom parser will immediately halt, highlight the exact line with a red squiggly error in Monaco Editor, and print the detailed exception in the integrated Terminal.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🚀 Installation & Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1.  **Clone the repository:**
+    ```bash
+    git clone [https://github.com/RevDra/Beauty-Maid.git](https://github.com/RevDra/Beauty-Maid.git)
+    cd Beauty-Maid
+    ```
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+3.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
+4.  Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Learn More
+## 🛠️ Built With
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+* **Next.js 16** (App Router)
+* **React Flow** (Visual Node Engine)
+* **Monaco Editor** (VS Code's internal editor engine)
+* **Dagre** (Directed graph auto-layout algorithm)
+* **Tailwind CSS** & **Lucide Icons**
