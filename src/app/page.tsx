@@ -560,7 +560,7 @@ const SHAPE_CATEGORIES = ["Custom", "General", "Flowchart"];
 const LandingPage = ({ onStart }: { onStart: (e: React.MouseEvent<HTMLButtonElement>) => void }) => {
   const [stage, setStage] = useState(0);
   const [descText, setDescText] = useState('');
-  const fullDesc = "The magical bridge between visual diagrams and code. Unleash your creativity, seamlessly design, edit, and instantly compile complex architectures into clean Mermaid code with our two-way sync engine.";
+  const fullDesc = "Visually edit diagrams and compile to Mermaid code & vice versa.";
   
   useEffect(() => {
     setTimeout(() => setStage(1), 500); 
@@ -578,38 +578,49 @@ const LandingPage = ({ onStart }: { onStart: (e: React.MouseEvent<HTMLButtonElem
           clearInterval(interval);
           setTimeout(() => setStage(4), 400); 
         }
-      }, 25);
+      }, 35);
       return () => clearInterval(interval);
     }
   }, [stage]);
 
+  const DMLogo = () => (
+    <svg viewBox="0 0 100 100" className={`w-12 h-12 md:w-16 md:h-16 text-blue-500 drop-shadow-[0_0_12px_rgba(59,130,246,0.8)] transform transition-all duration-700 ease-out ${stage >= 1 ? 'translate-x-0 opacity-100 scale-100' : '-translate-x-[30vw] opacity-0 scale-150'}`} fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20,50 C20,20 50,20 50,50 C50,80 80,80 80,50 C80,20 50,20 50,50" />
+      <circle cx="80" cy="50" r="8" fill="currentColor" />
+      <path d="M20,50 L5,50" />
+    </svg>
+  );
+
   return (
     <div className="relative w-full h-full flex flex-col items-center justify-center">
-      {/* Background Grid */}
+      {/* Dynamic Background */}
       <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
-      
-      {/* Floating shapes */}
-      <div className="absolute top-[20%] left-[15%] w-16 h-16 border-2 border-blue-500/30 rounded-full animate-[ping_4s_infinite] pointer-events-none"></div>
-      <div className="absolute top-[60%] right-[20%] w-24 h-24 border-2 border-purple-500/30 rotate-45 animate-[pulse_6s_infinite] pointer-events-none"></div>
-      <div className="absolute bottom-[20%] left-[30%] text-6xl text-emerald-500/20 font-mono animate-bounce pointer-events-none">{'{ }'}</div>
+      <div className="absolute top-[10%] left-[10%] w-12 h-12 border-2 border-blue-500/20 rounded-md animate-[spin_10s_linear_infinite]" />
+      <div className="absolute top-[70%] left-[20%] w-16 h-16 border-2 border-purple-500/20 rounded-full animate-[ping_5s_infinite]" />
+      <div className="absolute top-[20%] right-[15%] w-20 h-20 border-2 border-emerald-500/20 rotate-45 animate-[pulse_4s_infinite]" />
+      <div className="absolute bottom-[20%] right-[25%] w-10 h-10 border-2 border-amber-500/20 rounded-lg animate-[spin_8s_linear_infinite_reverse]" />
+      <div className="absolute top-[40%] left-[5%] text-4xl text-blue-500/10 font-mono animate-bounce">&lt;/&gt;</div>
+      <div className="absolute bottom-[10%] left-[40%] text-5xl text-purple-500/10 font-mono animate-pulse">{'{ }'}</div>
+      <div className="absolute top-[50%] right-[5%] text-6xl text-emerald-500/10 font-mono animate-bounce">#</div>
 
       {/* Main content */}
       <div className="relative z-10 flex flex-col items-center">
-         <div className="flex items-center text-5xl md:text-7xl font-bold tracking-tight mb-2 h-24">
-           <span className={`text-blue-500 transform transition-all duration-700 ease-out ${stage >= 1 ? 'translate-x-0 rotate-12 scale-100' : '-translate-x-[50vw] -rotate-45 scale-150'}`}>/</span>
-           <span className={`ml-4 overflow-hidden whitespace-nowrap transition-all duration-700 ease-out ${stage >= 2 ? 'max-w-[500px] opacity-100' : 'max-w-0 opacity-0'}`}>
+         <div className="flex items-center justify-center h-24 mb-2 transition-all duration-1000">
+           <DMLogo />
+           <span className={`ml-4 text-5xl md:text-7xl font-bold tracking-tight overflow-hidden whitespace-nowrap transition-all duration-700 ease-out ${stage >= 2 ? 'max-w-[500px] opacity-100' : 'max-w-0 opacity-0'}`}>
              Dream Maid
            </span>
          </div>
-         <div className={`text-2xl md:text-3xl font-light text-slate-400 mb-8 transition-opacity duration-1000 ease-in ${stage >= 3 ? 'opacity-100' : 'opacity-0'}`}>
-             Dream Maid, Dream Aid.
+         <div className={`text-2xl md:text-3xl font-light text-slate-400 mb-10 transition-opacity duration-1000 ease-in ${stage >= 3 ? 'opacity-100' : 'opacity-0'}`}>
+               Let Mermaid be your Dream Aid
          </div>
       </div>
       
-      <div className="relative z-10 h-24 text-slate-300 text-lg max-w-2xl text-center font-mono leading-relaxed px-4">
+      <div className="relative z-10 h-10 text-slate-300 text-lg max-w-2xl text-center font-mono leading-relaxed px-4">
         {descText}<span className={`inline-block w-2 h-5 ml-1 bg-blue-500 align-middle ${stage < 4 ? 'animate-pulse' : 'hidden'}`}></span>
       </div>
-      <div className={`relative z-10 mt-6 transition-all duration-1000 ease-in ${stage >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+      
+      <div className={`relative z-10 mt-16 transition-all duration-1000 ease-in ${stage >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         <button 
           onClick={onStart}
           className="group relative px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-semibold transition-all duration-300 hover:shadow-[0_0_25px_rgba(59,130,246,0.8)] flex items-center gap-2"
@@ -784,7 +795,7 @@ const IDEPageContent = () => {
     }
   }, [code]);
 
-  useEffect(() => { handleSyncCodeToDiagram(); }, []); 
+  useEffect(() => { handleSyncCodeToDiagram(); }, []);
 
   const handleAutoLayout = useCallback(() => {
     const layoutedNodes = autoLayoutElements(nodes, edges);
@@ -981,11 +992,6 @@ const IDEPageContent = () => {
       setContextMenu({ id: node.id, top: event.clientY, left: event.clientX, type: 'node' });
     }
   }, [nodes]);
-
-  const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
-    event.preventDefault();
-    setContextMenu({ id: edge.id, top: event.clientY, left: event.clientX, type: 'edge' });
-  }, []);
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);
@@ -1257,17 +1263,17 @@ const IDEPageContent = () => {
         <LandingPage onStart={startApp} />
         {isAnimatingOut && (
           <div 
-            className="absolute inset-0 bg-transparent pointer-events-none"
+            className="absolute inset-0 pointer-events-none z-[10001]"
             style={{
-               animation: 'holeExpand 1s cubic-bezier(0.65, 0, 0.35, 1) forwards',
-               background: `radial-gradient(circle at ${holePos.x}px ${holePos.y}px, transparent var(--hole-radius, 0%), #0f172a var(--hole-radius, 0%))`
+               animation: 'holeExpand 1s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+               background: `radial-gradient(circle at ${holePos.x}px ${holePos.y}px, transparent var(--hole-radius, 0%), #ffffff calc(var(--hole-radius, 0%) + 1%), #ffffff calc(var(--hole-radius, 0%) + 5%), #0f172a calc(var(--hole-radius, 0%) + 20%))`
             }}
           >
             <style>{`
               @property --hole-radius { syntax: '<percentage>'; initial-value: 0%; inherits: false; }
               @keyframes holeExpand {
                  0% { --hole-radius: 0%; }
-                 100% { --hole-radius: 200%; }
+                 100% { --hole-radius: 150%; }
               }
             `}</style>
           </div>
@@ -1494,13 +1500,13 @@ const IDEPageContent = () => {
               <div className={`absolute top-4 left-4 z-10 px-2 py-1 text-xs font-medium rounded-md shadow border ${theme.border} ${theme.bgMain} ${theme.text}`}>{(zoomLevel * 100).toFixed(0)}%</div>
               
               <div className="flex-1 w-full h-full pointer-events-none" style={{ zIndex: 10 }}>
-                <div className="w-full h-full pointer-events-auto" onPointerMove={handleCanvasPointerMove} onMouseUp={handleCanvasMouseUp} onMouseDown={handleCanvasMouseClick}>
+                <div className="w-full h-full pointer-events-auto">
                   <ReactFlow 
                     nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                     onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} 
                     onConnect={onConnect} onMove={handleMove} 
-                    onDrop={onDrop} onDragOver={onDragOver} onNodeContextMenu={onNodeContextMenu} 
-                    onEdgeContextMenu={onEdgeContextMenu}
+                    onDrop={onDrop} onDragOver={onDragOver} 
+                    onNodeContextMenu={onNodeContextMenu} 
                     
                     nodesDraggable={!isDrawingMode}
                     nodesConnectable={!isDrawingMode}
